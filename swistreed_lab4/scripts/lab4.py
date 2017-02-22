@@ -63,7 +63,7 @@ class Position:
 def normalize_angle(angle):
     """REDUCE ANGLES TO -pi pi"""
     angle %= np.pi*2
-    angle = (angle + np.pi*2) % np.pi*2
+#    angle = (angle + np.pi*2) % np.pi*2
     if angle > np.pi:
         angle -= np.pi*2
     return angle
@@ -112,6 +112,9 @@ class Lab4Solution:
         dist = np.sqrt((x1 - x2)*(x1 - x2) + (y1 - y2)*(y1 - y2))
         # print dis
         return dist
+        
+    def angle_traveled(self):
+        return abs(self.position.theta - self.starting_position.theta)
 
     def rotation_distance(self, q1, q2):
         """ Calculate the difference in yaw between two quaternions. For the 
@@ -142,9 +145,10 @@ class Lab4Solution:
         """ callback to handle odometry messages"""
 #        # Get the odometry message
 #        ret = self.copy_odom(odom_msg)
+        self.first_odom =True
         
-        # Set previous position
-        self.prev_position = self.position
+        # Used to determine which direction the turtlebot is spinning
+        self.prev_position.theta=self.position.theta
         
         # We only care about the x,y position and the z and w orientation
         self.odom.pose.pose.position.x = odom_msg.pose.pose.position.x
@@ -156,6 +160,7 @@ class Lab4Solution:
         self.position.x = self.odom.pose.pose.position.x
         self.position.y = self.odom.pose.pose.position.y
         self.position.theta = normalize_angle(self.rotation_distance(self.odom.pose.pose.orientation.z,self.odom.pose.pose.orientation.w))
+#        print 'yaw {}'.format(self.position.theta)
         
         if (self.position.theta > self.prev_position.theta):
             self.position.Clockwise = False
@@ -182,14 +187,12 @@ class Lab4Solution:
         """
         You may want to implement a function that stops movement
         """
-        
-        rospy.logerr("Cancelling All Movement")
         self.status = RobotStatus.STOPPED
         self.goal_rotation = -1
         self.goal_distance = -1
         self.twist_msg = Twist()
-        self.starting_position =self.position
-        # self.command_list = []
+        self.cmd_vel.publish(self.twist_msg)
+        self.first_time = True
 
     def drive_straight(self, speed, distance=0, time=.1):
         """ The function drives straight for a certain time or distance. If
@@ -207,6 +210,8 @@ class Lab4Solution:
         if self.first_time:
             self.goal_distance = distance    
             self.status = RobotStatus.STRAIGHT
+            print 'pos changed'
+            self.set_start_pos()
             self.first_time = False
         
         # Calculate the rotational speed using the formula: v = r*phi_dot
@@ -233,21 +238,22 @@ class Lab4Solution:
         # Set the goal rotation, starting odom, and status on the first time
         #  through the loop.
         if self.first_time:
-            self.goal_rotation = angle
+#            if not Clockwise:
+#                self.goal_rotation = angle
+#            else:
+#                self.goal_rotation = -angle
+            self.goal_angle = angle
             self.status = RobotStatus.ROTATING
+            self.set_start_pos()
+            self.position.Clockwise=Clockwise
             self.first_time = False
         
-        # If time is not set assume a omega of 1 rad/sec
-        if (time ==0):
-            omega = 1
-        # Otherwise calculate omega (in rad/sec) using the formula:
-        #   omega = angle/time
-        else:
-            omega = angle/time/2
+        # Assume omega=1 rad/sec
+        omega =1
         
         # Calculate omega using the formula: 
-        #   omega = r*(phi)/(2l)
-        phi = omega*BASE_DIAMETER/WHEEL_RADIUS
+        #   omega = r*(phi_right-phi_left)/(2l)
+        phi = omega*BASE_DIAMETER/WHEEL_RADIUS/2
         
         if (Clockwise):
             self.vel_from_wheels(-phi,phi,abs(time))
@@ -265,9 +271,9 @@ class Lab4Solution:
         # Set the goal rotation, starting odom, and status on the first time
         #  through the loop.
         if self.first_time:
-            self.goal_arc = angle
+            self.goal_angle = angle
             self.status = RobotStatus.ARC
-#            self.starting_position =self.position
+            self.set_start_pos()
             self.first_time = False
 #            self.starting_odom = self.odom
         
@@ -287,7 +293,10 @@ class Lab4Solution:
         # Solve for the desired time
         time = abs(angle/omega)
         
-        self.vel_from_wheels(phi_dot_right, phi_dot_left, time)
+        if angle<0:
+            self.vel_from_wheels(-phi_dot_right, -phi_dot_left, time)
+        else:
+            self.vel_from_wheels(phi_dot_right, phi_dot_left, time)
         
     def set_trajectory(self):
         """ This code sets the trajectory defined in the lab handout:
@@ -298,11 +307,11 @@ class Lab4Solution:
                 - Drive forward 42cm
         """
         
-        self.command_list.append(['Straight',0.5, 0.6])
-#        self.command_list.append(self.rotate(90*DEG_TO_RAD, 1, False))
-#        self.command_list.append(self.drive_arc(0.15, 0.5, -180*DEG_TO_RAD))
-#        self.command_list.append(self.rotate(135*DEG_TO_RAD, 1, True))
-#        self.command_list.append(self.drive_straight(0.5, 0.42))
+        self.command_list.append(['Straight',0.2, 0.6])
+        self.command_list.append(['Rotate', 90*DEG_TO_RAD, 1, False])
+        self.command_list.append(['Arc', 0.15, 0.2, -180*DEG_TO_RAD])
+        self.command_list.append(['Rotate', 135*DEG_TO_RAD, 1, True])
+        self.command_list.append(['Straight', 0.2, 0.42])
         
     def execute_trajectory(self):
         """ This code impliments the trajectory defined in the lab handout as 
@@ -312,18 +321,27 @@ class Lab4Solution:
                 - Drive -180 degrees arc with a radius of 15cm
                 - Turn left 135 degrees
                 - Drive forward 42cm
-        """   
+        """ 
         if len(self.command_list)>0:
 #            print self.command_list[0]
             # Run the command that is first in the list
             if (self.command_list[0][0]== 'Straight'):
                 self.drive_straight(self.command_list[0][1], self.command_list[0][2])
                 self.cmd_vel.publish(self.twist_msg)
+                
+            if (self.command_list[0][0]== 'Arc'):
+                self.drive_arc(self.command_list[0][1], self.command_list[0][2], self.command_list[0][3])
+                self.cmd_vel.publish(self.twist_msg)
+                
+            if (self.command_list[0][0]== 'Rotate'):
+                self.rotate(self.command_list[0][1], self.command_list[0][2], self.command_list[0][3])
+                self.cmd_vel.publish(self.twist_msg)
             # Check to see if the condition has been met
             if (not self.process_position()):  
                 # If it has, remove it from the list of commands
-                print "remove"
+                print "removed: {}".format(self.command_list[0][0])
                 self.command_list.pop(0)
+                print "Next command: {}".format(self.command_list[0][0])
                 self.cancel_goals()
         else:
             print "empty"
@@ -343,22 +361,40 @@ class Lab4Solution:
         if (self.status == RobotStatus.ROTATING) or (self.status == RobotStatus.ARC):
             ##### NEED TO CHECK WHAT DOMAIN THE ANGLE IS IN ####
             # Check to see if the desired angle has been met
-            goal_angle = self.goal_rotation+self.process_position.theta
-            if (goal_angle> self.position.theta) and (self.position.Clockwise):
+#            goal_angle = normalize_angle(self.goal_rotation+self.starting_position.theta)
+#            
+#            print 'Goal: {}, Current {}, '.format(goal_angle, self.position.theta)
+#            if (goal_angle> self.position.theta) and (self.position.Clockwise):
+#                Go_NoGo = False
+#            elif (goal_angle < self.position.theta) and not (self.position.Clockwise):
+#                Go_NoGo = False
+#                
+            ang_trav = self.angle_traveled()
+            print ang_trav/DEG_TO_RAD
+            
+            if (ang_trav > abs(self.goal_angle)):
                 Go_NoGo = False
-            elif (goal_angle < self.position.theta) and not (self.position.Clockwise):
-                Go_NoGo = False
+                
                 
         elif (self.status == RobotStatus.STRAIGHT):
             # Check to see if the desired distance has been met
             dist_traveled = self.euclidean_distance(self.starting_position.x, self.position.x,
                                                     self.starting_position.y, self.position.y)
             print dist_traveled
+#            print 'current position {},{} starting position {},{}'.format(self.position.x,self.position.y, self.starting_position.x, self.starting_position.y)
             if (dist_traveled > self.goal_distance):
                 Go_NoGo = False
-        
+                self.set_start_pos()
+                
         return Go_NoGo
-
+        
+    def set_start_pos(self):
+        print 'new starting position'
+        self.starting_position.x =self.position.x
+        self.starting_position.y =self.position.y
+        self.starting_position.theta =self.position.theta
+        self.starting_position.Clockwise =self.position.Clockwise
+        
     def shutdown(self):
         """ publish an empty twist message to stop the turtlebot"""
         rospy.loginfo("Stopping Turtlebot")
@@ -404,6 +440,7 @@ class Lab4Solution:
         self.goal_arc = []
         self.command_list = []
         self.status = RobotStatus.STOPPED  # -1 to stop, 1 to move
+        self.first_odom =False
         
         # loop rate
         r = rospy.Rate(50)
@@ -423,7 +460,7 @@ class Lab4Solution:
         # publisher for twist messages
         self.cmd_vel = rospy.Publisher('cmd_vel_mux/input/teleop', Twist,queue_size=100)
 
-        start_time = rospy.Time.now()
+#        start_time = rospy.Time.now()
         
         # trigger to execute trajectory
         trig = True
@@ -440,25 +477,26 @@ class Lab4Solution:
         
         # Start without any goals
         self.cancel_goals()
+        
         while not rospy.is_shutdown():
             # IN THIS LOOP ROS SENDS AND RECEIVES
-            if rospy.Time.now().to_sec() - start_time.to_sec() > 1:
-                start_time = rospy.Time.now()
-                # LOGGING MESSAGES FOR DEBUGGING
-                rospy.logwarn(
-                    "Starting Position %.2f %.2f %.2f" % (self.starting_odom.pose.pose.position.x,
-                                                          self.starting_odom.pose.pose.position.y,
-                                                          self.starting_odom.pose.pose.position.z))
-                rospy.logwarn(
-                    "Current Position %.2f %.2f %.2f" % (self.odom.pose.pose.position.x,
-                                                         self.odom.pose.pose.position.y,
-                                                         self.odom.pose.pose.position.z))
-                # rospy.logwarn("Linear Velocity %f %f %f" % (self.odom.twist.twist.linear.x,
-                #                                             self.odom.twist.twist.linear.y,
-                #                                             self.odom.twist.twist.linear.z))
-                # rospy.logwarn("Angular Velocity %f %f %f" % (self.odom.twist.twist.angular.x,
-                #                                              self.odom.twist.twist.angular.y,
-                #                                              self.odom.twist.twist.angular.z))
+#            if rospy.Time.now().to_sec() - start_time.to_sec() > 1:
+#                start_time = rospy.Time.now()
+#                # LOGGING MESSAGES FOR DEBUGGING
+#                rospy.logwarn(
+#                    "Starting Position %.2f %.2f %.2f" % (self.starting_odom.pose.pose.position.x,
+#                                                          self.starting_odom.pose.pose.position.y,
+#                                                          self.starting_odom.pose.pose.position.z))
+#                rospy.logwarn(
+#                    "Current Position %.2f %.2f %.2f" % (self.odom.pose.pose.position.x,
+#                                                         self.odom.pose.pose.position.y,
+#                                                         self.odom.pose.pose.position.z))
+#                 rospy.logwarn("Linear Velocity %f %f %f" % (self.odom.twist.twist.linear.x,
+#                                                             self.odom.twist.twist.linear.y,
+#                                                             self.odom.twist.twist.linear.z))
+#                 rospy.logwarn("Angular Velocity %f %f %f" % (self.odom.twist.twist.angular.x,
+#                                                              self.odom.twist.twist.angular.y,
+#                                                              self.odom.twist.twist.angular.z))
 #                rospy.logwarn("Wheels Velocity R:%.2f L:%.2f" % (self.right_wheel_vel, self.left_wheel_vel))
 #                rospy.logwarn("Wheels Position R:%.2f L:%.2f" % (self.right_wheel_pos, self.left_wheel_pos))
 #                rospy.logwarn("Bumper Status %d " % self.bumper_pressed)
@@ -466,10 +504,10 @@ class Lab4Solution:
 #                rospy.logwarn("%d Commands to be executed" % len(self.command_list))
                 
             # When your trigger is activated execute trajectory
-            if trig:
-                if (rospy.Time.now().to_sec()- now)>1:
-                    self.execute_trajectory()
-                    print 'current position {},{} starting position {},{}'.format(self.position.x,self.position.y, self.starting_position.x, self.starting_position.y)
+            if trig and self.first_odom:
+#                if (rospy.Time.now().to_sec()- now)>2:
+                self.execute_trajectory()
+#                    print 'current position {},{} starting position {},{}'.format(self.position.x,self.position.y, self.starting_position.x, self.starting_position.y)
             
             # Test to see if part 3 (the vel_from_wheels function) works
             if testing_pt3:
