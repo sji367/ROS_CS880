@@ -140,6 +140,10 @@ class Lab4Solution:
             self.bumper_pressed=-1
         else:
             self.bumper_pressed=1 # Pressed
+            
+        if (bumper_msg.bumper == BumperEvent.CENTER)and (self.bumper_pressed==1):
+            self.trig = True
+        
 
     def odom_callback(self, odom_msg):
         """ callback to handle odometry messages"""
@@ -463,7 +467,7 @@ class Lab4Solution:
 #        start_time = rospy.Time.now()
         
         # trigger to execute trajectory
-        trig = True
+        self.trig = False
         self.first_time = True
         self.final_test_start =True
         
@@ -504,7 +508,7 @@ class Lab4Solution:
 #                rospy.logwarn("%d Commands to be executed" % len(self.command_list))
                 
             # When your trigger is activated execute trajectory
-            if trig and self.first_odom:
+            if self.trig and self.first_odom:
 #                if (rospy.Time.now().to_sec()- now)>2:
                 self.execute_trajectory()
 #                    print 'current position {},{} starting position {},{}'.format(self.position.x,self.position.y, self.starting_position.x, self.starting_position.y)
