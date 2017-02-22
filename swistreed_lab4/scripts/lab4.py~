@@ -1,0 +1,262 @@
+#!/usr/bin/env python
+import rospy
+import math
+import numpy as np
+import copy as cm
+import tf
+from copy import deepcopy
+from nav_msgs.msg import Odometry
+from kobuki_msgs.msg import BumperEvent
+from geometry_msgs.msg import Twist
+from sensor_msgs.msg import JointState
+
+BUMPERS = ["LEFT", "CENTER", "RIGHT"]
+STATUS = ["STOPPED", "STRAIGHT", "ROTATING", "ARC"]
+
+# TURTLEBOT SPECS
+
+MAX_LIN_VEL = .7
+MAX_ROT_VEL = 3.14
+
+BASE_DIAMETER = .23
+WHEEL_RADIUS = .035
+WHEEL_WIDTH = .021
+TICKS_PER_REVOLUTION = 52
+PULSES_PER_REVOLUTION = 13
+TICK_TO_METER = .000085292090497737556558
+METER_TO_TICK = 11724.41658029856624751591
+MILLIMITER_TO_TICK = 11.72441658029856624751591
+TICK_TO_RADIAN = .002436916871363930187454
+
+# THRESHOLDS CHANGE THOSE AS YOU SEEM FIT
+# x, y distance form target to consider correct
+XY_THRES = .05
+# same for rotation angle
+ROT_THRES = 5
+# same for arc movement
+QUAT_THRES = .01
+
+
+class RobotStatus:
+    # helper class with possible robot states
+    # not necessary for implementation
+    STOPPED, STRAIGHT, ROTATING, ARC = range(4)
+
+    def __init__(self):
+        pass
+
+
+def normalize_angle(angle):
+    """REDUCE ANGLES TO -180 180"""
+    angle %= 360
+    angle = (angle + 360) % 360
+    if angle > 180:
+        angle -= 360
+    return angle
+
+
+class Lab2Solution:
+
+    def vel_from_wheels(self, phi_right, phi_left, time):
+        """takes in right and left wheel velocities and translates the to twist messages"""
+		now = rospy.get_rostime()		
+		vel = (WHEEL_RADIUS/2)*(phi_right + phi_left)
+		omega = (BASE_DIAMETER/4)*WHEEL_RADIUS*(phi_right - phi_left)
+		motion = Twist(Vector3(vel,0,0),Vector3(0,0,omega))
+		while(rospy.get_rostime()-now<time)
+			self.cmd_vel.publish(motion)
+
+    def copy_odom(self, message=-1):
+        """
+            copy an odometry message (deepcopy did not work for me
+            if you figure it out let me know :P).
+            If no arguments are given it will the message the solution
+            uses
+        """
+        if message == -1:
+            message = self.odom
+        ret = Odometry()
+        ret.pose.pose.position.x = message.pose.pose.position.x
+        ret.pose.pose.position.y = message.pose.pose.position.y
+        ret.pose.pose.position.z = message.pose.pose.position.z
+        ret.pose.pose.orientation.x = message.pose.pose.orientation.x
+        ret.pose.pose.orientation.x = message.pose.pose.orientation.x
+        ret.pose.pose.orientation.y = message.pose.pose.orientation.y
+        ret.pose.pose.orientation.z = message.pose.pose.orientation.z
+        ret.pose.pose.orientation.w = message.pose.pose.orientation.w
+        ret.twist.twist.linear.x = message.twist.twist.linear.x
+        ret.twist.twist.linear.y = message.twist.twist.linear.y
+        ret.twist.twist.linear.z = message.twist.twist.linear.z
+        ret.twist.twist.angular.x = message.twist.twist.angular.x
+        ret.twist.twist.angular.y = message.twist.twist.angular.y
+        ret.twist.twist.angular.z = message.twist.twist.angular.z
+        return ret
+
+    def euclidean_distance(self, x1, x2, y1, y2):
+        """Calculate euclidean distance between two points"""
+        dis = np.sqrt((x1 - x2)*(x1 - x2) + (y1 - y2)*(y1 - y2))
+        # print dis
+        return self, dis
+
+    def rotation_distance(self, q1, q2):
+        """Calculate the difference in yaw between two quaternions"""
+        # r, p, y now contain the roll, pitch and yaw from the two quaternions in euler form
+        # you can derive the angle from that in a number of ways
+        rot = 0
+        return self, rot
+
+    def bumper_callback(self, bumper_msg):
+        """ callback to handle bumper messages"""
+        return
+
+    def odom_callback(self, odom_msg):
+        """ callback to handle odometry messages"""
+        return
+
+    def encoder_callback(self, encoder_msg):
+        """
+        callback to handle joint states
+        could read individual wheel
+        velocities and positions
+        """
+        # print encoder_msg
+        self.right_wheel_vel = encoder_msg.something
+        self.right_wheel_pos = encoder_msg.somethingelse
+        self.left_wheel_vel = encoder_msg.somethingdifferent
+        self.left_wheel_pos = encoder_msg.somethingtotallydifferent
+
+    def clear_list(self):
+        """
+        You may want to implement a function that cancels given action(s)
+        """
+        self.command_list = []
+
+    def cancel_goals(self):
+        """
+        You may want to implement a function that stops movement
+        """
+        rospy.logerr("Cancelling All Movement")
+        self.status = RobotStatus.STOPPED
+        self.goal_rotation = -1
+        self.goal_distance = -1
+        self.twist_msg = Twist()
+        # self.command_list = []
+
+    def drive_straight(self, speed, distance, time=.1):
+        """ IMPLEMENT YOUR OWN HERE """
+        return self
+
+    def rotate(self, angle):
+        """ IMPLEMENT YOUR OWN HERE """
+        return self
+
+    def drive_arc(self, radius, speed=0.1, angle=0):
+        """ IMPLEMENT YOUR OWN HERE """
+        return self
+
+    def execute_trajectory(self):
+        """ IMPLEMENT YOUR OWN HERE """
+
+    def process_position(self):
+        """
+        you can check the progress of your actions here
+        or in the individual function, it's up to you
+        """
+        return self
+
+    def shutdown(self):
+        """ publish an empty twist message to stop the turtlebot"""
+        rospy.loginfo("Stopping Turtlebot")
+        self.cmd_vel.publish(Twist())
+        rospy.sleep(1)
+
+    def __init__(self):
+        """ STUFF YOU MAY WANT TO USE"""
+        rospy.init_node('lab1_2')
+        rospy.on_shutdown(self.shutdown)
+        # odometry messages
+        self.odom = Odometry()
+        self.starting_odom = Odometry()
+        # bumper event message
+        self.bumper_msg = BumperEvent()
+        # twist message
+        self.twist_msg = Twist()
+
+        # transformer
+        self.current_tf = tf.TransformerROS()
+        self.current_transform = []
+        self.current_rotation = []
+
+        # transform listener
+        self.odom_listener = tf.TransformListener()
+        # transform broadcaster
+        self.odom_tf_broadcaster = tf.TransformBroadcaster()
+
+        # placeholder variables
+        self.right_wheel_vel = 0.0
+        self.right_wheel_pos = 0.0
+        self.left_wheel_vel = 0.0
+        self.left_wheel_pos = 0.0
+
+        # things you might want to consider using
+        self.bumper_pressed = -1
+        self.goal_distance = -1
+        self.goal_rotation = -1
+        self.goal_arc = []
+        self.command_list = []
+        self.status = RobotStatus.STOPPED  # -1 to stop, 1 to move
+
+        # loop rate
+        r = rospy.Rate(50)
+
+        # SUBSCRIBERS AND PUBLISHERS
+        # you might need to change topics depending on
+        # whether you use simulation or real robots
+        # subscribe to bumper events
+        self.bumper_sub = rospy.Subscriber()
+        # subscribe to odometry messages
+        self.odom_sub = rospy.Subscriber()
+        # subscribe to encoder messages
+        self.encoder_sub = rospy.Subscriber()
+        # publisher for twist messages
+        self.cmd_vel = rospy.Publisher('cmd_vel_mux/input/topic', Twist, queue_size=100)
+
+        start_time = rospy.Time.now()
+        # trigger to execute trajectory
+        trig = False
+        while not rospy.is_shutdown():
+            # IN THIS LOOP ROS SENDS AND RECEIVES
+            if rospy.Time.now().to_sec() - start_time.to_sec() > 1:
+                start_time = rospy.Time.now()
+                # LOGGING MESSAGES FOR DEBUGGING
+                rospy.logwarn(
+                    "Starting Position %.2f %.2f %.2f" % (self.starting_odom.pose.pose.position.x,
+                                                          self.starting_odom.pose.pose.position.y,
+                                                          self.starting_odom.pose.pose.position.z))
+                rospy.logwarn(
+                    "Current Position %.2f %.2f %.2f" % (self.odom.pose.pose.position.x,
+                                                         self.odom.pose.pose.position.y,
+                                                         self.odom.pose.pose.position.z))
+                # rospy.logwarn("Linear Velocity %f %f %f" % (self.odom.twist.twist.linear.x,
+                #                                             self.odom.twist.twist.linear.y,
+                #                                             self.odom.twist.twist.linear.z))
+                # rospy.logwarn("Angular Velocity %f %f %f" % (self.odom.twist.twist.angular.x,
+                #                                              self.odom.twist.twist.angular.y,
+                #                                              self.odom.twist.twist.angular.z))
+                rospy.logwarn("Wheels Velocity R:%.2f L:%.2f" % (self.right_wheel_vel, self.left_wheel_vel))
+                rospy.logwarn("Wheels Position R:%.2f L:%.2f" % (self.right_wheel_pos, self.left_wheel_pos))
+                rospy.logwarn("Bumper Status %d " % self.bumper_pressed)
+                rospy.logwarn("Robot Status %d " % self.status)
+                rospy.logwarn("%d Commands to be executed" % len(self.command_list))
+            # When your trigger is activated execute trajectory
+            if trig:
+                self.execute_trajectory()
+            r.sleep()
+        return
+
+
+if __name__ == '__main__':
+    try:
+        Lab2Solution()
+    except rospy.ROSInterruptException:
+        pass
