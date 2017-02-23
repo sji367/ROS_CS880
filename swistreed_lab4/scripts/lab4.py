@@ -63,7 +63,6 @@ class Position:
 def normalize_angle(angle):
     """REDUCE ANGLES TO -pi pi"""
     angle %= np.pi*2
-#    angle = (angle + np.pi*2) % np.pi*2
     if angle > np.pi:
         angle -= np.pi*2
     return angle
@@ -79,7 +78,7 @@ class Lab4Solution:
         vel = (WHEEL_RADIUS/2)*(phi_right + phi_left)
         omega = WHEEL_RADIUS*(phi_right - phi_left)/(BASE_DIAMETER)
         
-#        print 'v:{}, omega:{}'.format(vel,omega)
+        # Write a new twist message
         self.twist_msg = Twist(Vector3(vel,0,0),Vector3(0,0,omega))
         
     def copy_odom(self, message=-1):
@@ -110,11 +109,20 @@ class Lab4Solution:
     def euclidean_distance(self, x1, x2, y1, y2):
         """ Calculate euclidean distance between two points"""
         dist = np.sqrt((x1 - x2)*(x1 - x2) + (y1 - y2)*(y1 - y2))
-        # print dis
         return dist
         
     def angle_traveled(self):
-        return abs(self.position.theta - self.starting_position.theta)
+        """ Calculates the angle traveled between the current and previous 
+            angle.
+        """
+        diff = self.prev_position.theta-self.position.theta
+        # If there is a big jump, then it must have crossed the -180/180 
+        #  boundary.
+        if abs(diff)>np.pi:
+            diff -= 2*np.pi
+            diff *= -1
+        
+        self.angle_trav += diff
 
     def rotation_distance(self, q1, q2):
         """ Calculate the difference in yaw between two quaternions. For the 
@@ -146,11 +154,7 @@ class Lab4Solution:
         
 
     def odom_callback(self, odom_msg):
-        """ callback to handle odometry messages"""
-#        # Get the odometry message
-#        ret = self.copy_odom(odom_msg)
-        self.first_odom =True
-        
+        """ callback to handle odometry messages"""        
         # Used to determine which direction the turtlebot is spinning
         self.prev_position.theta=self.position.theta
         
@@ -163,13 +167,13 @@ class Lab4Solution:
         # convert those into x/y/theta positions
         self.position.x = self.odom.pose.pose.position.x
         self.position.y = self.odom.pose.pose.position.y
-        self.position.theta = normalize_angle(self.rotation_distance(self.odom.pose.pose.orientation.z,self.odom.pose.pose.orientation.w))
-#        print 'yaw {}'.format(self.position.theta)
+        self.position.theta = normalize_angle(self.rotation_distance(self.odom.pose.pose.orientation.z,
+                                                                     self.odom.pose.pose.orientation.w))
         
-        if (self.position.theta > self.prev_position.theta):
-            self.position.Clockwise = False
-        elif (self.position.theta < self.prev_position.theta):
-            self.position.Clockwise = True
+#        if (self.position.theta > self.prev_position.theta):
+#            self.position.Clockwise = False
+#        elif (self.position.theta < self.prev_position.theta):
+#            self.position.Clockwise = True
 
     def encoder_callback(self, encoder_msg):
         """ Callback to handle joint states that could read individual wheel 
@@ -181,15 +185,8 @@ class Lab4Solution:
         self.left_wheel_vel = encoder_msg.somethingdifferent
         self.left_wheel_pos = encoder_msg.somethingtotallydifferent
 
-    def clear_list(self):
-        """
-        You may want to implement a function that cancels given action(s)
-        """
-        self.command_list = []
-
     def cancel_goals(self):
-        """
-        You may want to implement a function that stops movement
+        """ You may want to implement a function that stops movement
         """
         self.status = RobotStatus.STOPPED
         self.goal_rotation = -1
@@ -214,7 +211,6 @@ class Lab4Solution:
         if self.first_time:
             self.goal_distance = distance    
             self.status = RobotStatus.STRAIGHT
-            print 'pos changed'
             self.set_start_pos()
             self.first_time = False
         
@@ -242,10 +238,7 @@ class Lab4Solution:
         # Set the goal rotation, starting odom, and status on the first time
         #  through the loop.
         if self.first_time:
-#            if not Clockwise:
-#                self.goal_rotation = angle
-#            else:
-#                self.goal_rotation = -angle
+            self.ang_trav = 0
             self.goal_angle = angle
             self.status = RobotStatus.ROTATING
             self.set_start_pos()
@@ -275,11 +268,11 @@ class Lab4Solution:
         # Set the goal rotation, starting odom, and status on the first time
         #  through the loop.
         if self.first_time:
+            self.ang_trav = 0
             self.goal_angle = angle
             self.status = RobotStatus.ARC
             self.set_start_pos()
             self.first_time = False
-#            self.starting_odom = self.odom
         
         ## Solve for phi_dot of each wheel using the equations:
         #   R = l((phi_dot_r + phi_dot_l)/(phi_dot_r - phi_dot_l))
@@ -327,7 +320,6 @@ class Lab4Solution:
                 - Drive forward 42cm
         """ 
         if len(self.command_list)>0:
-#            print self.command_list[0]
             # Run the command that is first in the list
             if (self.command_list[0][0]== 'Straight'):
                 self.drive_straight(self.command_list[0][1], self.command_list[0][2])
@@ -345,7 +337,8 @@ class Lab4Solution:
                 # If it has, remove it from the list of commands
                 print "removed: {}".format(self.command_list[0][0])
                 self.command_list.pop(0)
-                print "Next command: {}".format(self.command_list[0][0])
+                if len(self.command_list)>0:
+                    print "Next command: {}".format(self.command_list[0][0])
                 self.cancel_goals()
         else:
             print "empty"
@@ -364,28 +357,19 @@ class Lab4Solution:
         #  reached the desired angle.
         if (self.status == RobotStatus.ROTATING) or (self.status == RobotStatus.ARC):
             ##### NEED TO CHECK WHAT DOMAIN THE ANGLE IS IN ####
-            # Check to see if the desired angle has been met
-#            goal_angle = normalize_angle(self.goal_rotation+self.starting_position.theta)
-#            
-#            print 'Goal: {}, Current {}, '.format(goal_angle, self.position.theta)
-#            if (goal_angle> self.position.theta) and (self.position.Clockwise):
-#                Go_NoGo = False
-#            elif (goal_angle < self.position.theta) and not (self.position.Clockwise):
-#                Go_NoGo = False
-#                
-            ang_trav = self.angle_traveled()
-            print ang_trav/DEG_TO_RAD
+            # Check to see if the desired angle has been met     
+            self.angle_traveled()
+            print self.ang_trav/DEG_TO_RAD
             
-            if (ang_trav > abs(self.goal_angle)):
+            if (abs(self.ang_trav) > abs(self.goal_angle)):
                 Go_NoGo = False
-                
                 
         elif (self.status == RobotStatus.STRAIGHT):
             # Check to see if the desired distance has been met
             dist_traveled = self.euclidean_distance(self.starting_position.x, self.position.x,
                                                     self.starting_position.y, self.position.y)
             print dist_traveled
-#            print 'current position {},{} starting position {},{}'.format(self.position.x,self.position.y, self.starting_position.x, self.starting_position.y)
+            
             if (dist_traveled > self.goal_distance):
                 Go_NoGo = False
                 self.set_start_pos()
@@ -393,7 +377,7 @@ class Lab4Solution:
         return Go_NoGo
         
     def set_start_pos(self):
-        print 'new starting position'
+        """ Sets the new starting position on each new command. """
         self.starting_position.x =self.position.x
         self.starting_position.y =self.position.y
         self.starting_position.theta =self.position.theta
@@ -420,6 +404,9 @@ class Lab4Solution:
         self.position = Position()
         self.prev_position = Position()
         self.starting_position = Position()
+        
+        # Stored how far the turtlebot has traveled
+        self.angle_trav = 0
 
         # transformer
         self.current_tf = tf.TransformerROS()
@@ -444,7 +431,6 @@ class Lab4Solution:
         self.goal_arc = []
         self.command_list = []
         self.status = RobotStatus.STOPPED  # -1 to stop, 1 to move
-        self.first_odom =False
         
         # loop rate
         r = rospy.Rate(50)
@@ -509,10 +495,8 @@ class Lab4Solution:
                 
             # When your trigger is activated execute trajectory
             if self.trig and self.first_odom:
-#                if (rospy.Time.now().to_sec()- now)>2:
                 self.execute_trajectory()
-#                    print 'current position {},{} starting position {},{}'.format(self.position.x,self.position.y, self.starting_position.x, self.starting_position.y)
-            
+                 
             # Test to see if part 3 (the vel_from_wheels function) works
             if testing_pt3:
                 self.rotate(-95*DEG_TO_RAD, 2)
