@@ -6,7 +6,7 @@
 
   <maintainer email="sji367@wildcats.unh.edu">Swist_Reed</maintainer>
 
-  <license>BSD</license>
+  <license>None</license>
 
   <buildtool_depend>catkin</buildtool_depend>
   <build_depend>roscpp</build_depend>

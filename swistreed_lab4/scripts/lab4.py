@@ -115,13 +115,14 @@ class Lab4Solution:
         """ Calculates the angle traveled between the current and previous 
             angle.
         """
-        diff = self.prev_position.theta-self.position.theta
+        
+        diff = self.position.theta-self.prev_position.theta
         # If there is a big jump, then it must have crossed the -180/180 
         #  boundary.
         if abs(diff)>np.pi:
             diff -= 2*np.pi
             diff *= -1
-        
+            
         self.angle_trav += diff
 
     def rotation_distance(self, q1, q2):
@@ -137,7 +138,7 @@ class Lab4Solution:
         """
         # This should convert the quaternions to roll/pitch/yaw. We only have 
         #   quaternions z and w so the output is only yaw.
-        rot = tf.transformations.euler_from_quaternion([0, 0, q1, q2])
+        rot = tf.transformations.euler_from_quaternion([0.0, 0.0, q1, q2])
         yaw = rot[2]
         return yaw
 
@@ -155,6 +156,9 @@ class Lab4Solution:
 
     def odom_callback(self, odom_msg):
         """ callback to handle odometry messages"""        
+        # Need to wait until we get the first odometer
+        self.first_odom=True        
+        
         # Used to determine which direction the turtlebot is spinning
         self.prev_position.theta=self.position.theta
         
@@ -169,11 +173,6 @@ class Lab4Solution:
         self.position.y = self.odom.pose.pose.position.y
         self.position.theta = normalize_angle(self.rotation_distance(self.odom.pose.pose.orientation.z,
                                                                      self.odom.pose.pose.orientation.w))
-        
-#        if (self.position.theta > self.prev_position.theta):
-#            self.position.Clockwise = False
-#        elif (self.position.theta < self.prev_position.theta):
-#            self.position.Clockwise = True
 
     def encoder_callback(self, encoder_msg):
         """ Callback to handle joint states that could read individual wheel 
@@ -221,8 +220,11 @@ class Lab4Solution:
         #  needed to travel the desired distance using the formula: v=d/t
         if (distance != 0):
             time = distance/speed
-        
-        self.vel_from_wheels(phi,phi,time)
+            
+        if distance > 0:
+            self.vel_from_wheels(phi,phi,time)
+        else:
+            self.vel_from_wheels(-phi,-phi,time)
 
     def rotate(self, angle, time=0, Clockwise=False):
         """ Rotates the turtlebot in place. 
@@ -238,7 +240,7 @@ class Lab4Solution:
         # Set the goal rotation, starting odom, and status on the first time
         #  through the loop.
         if self.first_time:
-            self.ang_trav = 0
+            self.angle_trav = 0
             self.goal_angle = angle
             self.status = RobotStatus.ROTATING
             self.set_start_pos()
@@ -268,7 +270,7 @@ class Lab4Solution:
         # Set the goal rotation, starting odom, and status on the first time
         #  through the loop.
         if self.first_time:
-            self.ang_trav = 0
+            self.angle_trav = 0
             self.goal_angle = angle
             self.status = RobotStatus.ARC
             self.set_start_pos()
@@ -356,12 +358,11 @@ class Lab4Solution:
         # Both the Rotating and Arc commands should check to see if we have
         #  reached the desired angle.
         if (self.status == RobotStatus.ROTATING) or (self.status == RobotStatus.ARC):
-            ##### NEED TO CHECK WHAT DOMAIN THE ANGLE IS IN ####
             # Check to see if the desired angle has been met     
             self.angle_traveled()
-            print self.ang_trav/DEG_TO_RAD
+            print self.angle_trav/DEG_TO_RAD
             
-            if (abs(self.ang_trav) > abs(self.goal_angle)):
+            if (abs(self.angle_trav) > abs(self.goal_angle)):
                 Go_NoGo = False
                 
         elif (self.status == RobotStatus.STRAIGHT):
@@ -370,7 +371,7 @@ class Lab4Solution:
                                                     self.starting_position.y, self.position.y)
             print dist_traveled
             
-            if (dist_traveled > self.goal_distance):
+            if (dist_traveled > abs(self.goal_distance)):
                 Go_NoGo = False
                 self.set_start_pos()
                 
@@ -406,7 +407,7 @@ class Lab4Solution:
         self.starting_position = Position()
         
         # Stored how far the turtlebot has traveled
-        self.angle_trav = 0
+        self.angle_trav = 0.0
 
         # transformer
         self.current_tf = tf.TransformerROS()
@@ -456,6 +457,7 @@ class Lab4Solution:
         self.trig = False
         self.first_time = True
         self.final_test_start =True
+        self.first_odom =False
         
         # Boolean for testing part 3 of the lab
         testing_pt3 = False
@@ -468,32 +470,9 @@ class Lab4Solution:
         # Start without any goals
         self.cancel_goals()
         
+        # IN THIS LOOP ROS SENDS AND RECEIVES  
         while not rospy.is_shutdown():
-            # IN THIS LOOP ROS SENDS AND RECEIVES
-#            if rospy.Time.now().to_sec() - start_time.to_sec() > 1:
-#                start_time = rospy.Time.now()
-#                # LOGGING MESSAGES FOR DEBUGGING
-#                rospy.logwarn(
-#                    "Starting Position %.2f %.2f %.2f" % (self.starting_odom.pose.pose.position.x,
-#                                                          self.starting_odom.pose.pose.position.y,
-#                                                          self.starting_odom.pose.pose.position.z))
-#                rospy.logwarn(
-#                    "Current Position %.2f %.2f %.2f" % (self.odom.pose.pose.position.x,
-#                                                         self.odom.pose.pose.position.y,
-#                                                         self.odom.pose.pose.position.z))
-#                 rospy.logwarn("Linear Velocity %f %f %f" % (self.odom.twist.twist.linear.x,
-#                                                             self.odom.twist.twist.linear.y,
-#                                                             self.odom.twist.twist.linear.z))
-#                 rospy.logwarn("Angular Velocity %f %f %f" % (self.odom.twist.twist.angular.x,
-#                                                              self.odom.twist.twist.angular.y,
-#                                                              self.odom.twist.twist.angular.z))
-#                rospy.logwarn("Wheels Velocity R:%.2f L:%.2f" % (self.right_wheel_vel, self.left_wheel_vel))
-#                rospy.logwarn("Wheels Position R:%.2f L:%.2f" % (self.right_wheel_pos, self.left_wheel_pos))
-#                rospy.logwarn("Bumper Status %d " % self.bumper_pressed)
-#                rospy.logwarn("Robot Status %d " % self.status)
-#                rospy.logwarn("%d Commands to be executed" % len(self.command_list))
-                
-            # When your trigger is activated execute trajectory
+            # When your trigger is activated, execute trajectory
             if self.trig and self.first_odom:
                 self.execute_trajectory()
                  
