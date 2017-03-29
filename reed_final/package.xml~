@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<package>
+  <name>reed_final</name>
+  <version>0.0.0</version>
+  <description>The package for Sam Reed's Final Project in Intro to Mobile Robotics</description>
+  <maintainer email="sreed@ccom.unh.edu">Sam Reed</maintainer>
+  <license>BSD</license>
+  <author email="sreed@ccom.unh.edu">Sam Reed</author>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>message_generation</build_depend>
+  <build_depend>roscpp</build_depend>
+  <build_depend>rospy</build_depend>
+  <build_depend>std_msgs</build_depend>
+
+  <run_depend>roscpp</run_depend>
+  <run_depend>rospy</run_depend>
+  <run_depend>std_msgs</run_depend>
+  <run_depend>message_runtime</run_depend>
+
+  
+</package>
