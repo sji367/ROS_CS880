@@ -26,13 +26,16 @@ class Lab6Solution():
         self.current_pos.pose.orientation.w = feedback_msg.pose.orientation.w    
     
     def AR_marker_callback(self, feedback_msg):
-        """ """
+        """ Callback to handle ar tag messages to determine the position of 
+            the turtlebot with respect to the ar tag."""
         if len(feedback_msg)>0:
+            print 'I see tag {}'.format(feedback_msg.id)
             self.marker.id = feedback_msg.id
             self.marke.pose.pose.position.z = feedback_msg.pose.pose.position.z
             self.marker.pose.pose.position.x = feedback_msg.pose.pose.position.x
             self.marker.pose.pose.orientation.z,self.marker.pose.pose.orientation.w = self.rotate(self.feedback_msg.pose.pose.orientation)
             
+            # Initialize the turtlebots location
             if self.first_tag:
                 if self.marker.id == 0:
                     self.origin.pose.pose.position.x= 1.707 - self.marker.pose.pose.position.x
