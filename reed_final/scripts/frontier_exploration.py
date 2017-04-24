@@ -247,6 +247,12 @@ class Frontier_Based_Exploration():
         """ Runs the frontier based exploration. """
         # IN THIS LOOP ROS SENDS AND RECEIVES  
         while not rospy.is_shutdown():
+            # Transform the odometry message to the map reference frame
+            #   trans (Translation) - [x,y,z]
+            #   rot (Rotation) - quentieron [x,y,z,w]
+            (self.trans,self.rot) = self.listener.lookupTransform('/odom', '/map', rospy.Time(0))
+            if (cur_pos):
+                pass
             #self.cmd_pose.publish(self.new_pose)
             if find_new_centroid:
                 frontiers = self.findFrontiers()
@@ -260,11 +266,18 @@ class Frontier_Based_Exploration():
     def __init__(self):
         """ Initialize """
         rospy.init_node('Frontier_exploration')
+        
+        self.listener = tf.TransformListener()        
+        
         # Get the parameters for the grid
         self.ogrid_sizeX = rospy.get_param('x_size', 200)
         self.ogrid_sizeY = rospy.get_param('y_size', 200)
-        self.grid_size = rospy.get_param('grid_size', 0.05) # in meters/cell
-         # Sensor reliability
+        self.grid_size = rospy.get_param('grid_size', 0.05) # in meters/cell (5cm)
+        
+        # Sensor Meta data
+        self.max_range = rospy.get_param('max_range',5)
+        self.min_range = rospy.get_param('min_range',0.6)
+        # reliability
         self.p_measurement_given_occupied = rospy.get_param('p_z|occ',0.9)
         self.p_measurement_given_notOccupied = rospy.get_param('p_z|notOcc',0.3)
         
@@ -281,8 +294,6 @@ class Frontier_Based_Exploration():
         
         # Initialize the map as unknown (-1)
         self.map = [-1]*self.ogrid_sizeX*self.ogrid_sizeY # row-major order
-        
-       
         
         # loop rate
         self.r = rospy.Rate(50)
