@@ -8,7 +8,7 @@ Created on Mon Apr 24 14:58:00 2017
 
 import rospy
 import numpy as np
-from visualization_msgs import Marker, MarkerArray
+from visualization_msgs.msg import Marker, MarkerArray
 #import tf
 #from skimage import measure
 #from nav_msgs.msg import OccupancyGrid, MapMetaData, Odometry
@@ -58,7 +58,11 @@ class Test():
        testmap[2][1] = 1
        testmap[2][2] = 1
        testmap[7][5]= 0
-       self.testmap = np.reshape(testmap, (100,1))
+       string ='-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, 0, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 16, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 0, 0, 0, 0, 0, 0, 0, 0, 99, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 9, 0, 0, 0, 0, 0, 0, 99, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 25, 13, 0, 0, 0, 0, 19, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 9, 0, 0, 0, 0, 0, 25, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 18, -1, 0, 0, 2, 0, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 75, -1, 99, 99, 19, 6, 0, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 75, 89, -1, 0, 0, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 16, 7, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 19, 16, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 89, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1'
+       a= string.split(',')
+       
+       a1 = np.asarray(a, dtype=np.int8)
+       self.testmap = a1#np.reshape(testmap, (100,1))
        
     def blogDetection(self):
         """ """
@@ -85,8 +89,8 @@ class Test():
                     # mark equivalence
                     if (labels[topIndex] != labels[leftIndex]):
                         newEquiv =[]
-                        newEquiv.append(labels[topIndex][0])
-                        newEquiv.append(labels[leftIndex][0])
+                        newEquiv.append(labels[topIndex])
+                        newEquiv.append(labels[leftIndex])
                         if newEquiv not in equiv:
                             equiv.append(newEquiv)
                 elif top:
@@ -105,7 +109,7 @@ class Test():
         cur_index = 0
         labels, equiv = self.blogDetection()
         labelIndex = np.ones((max(labels)+1,1), dtype=np.int8)*-1
-        
+        print equiv, max(labels)
         #Second pass to remove equivilencies and store the frontiers
         num_equiv = len(equiv)
         for i in range(len(labels)):
@@ -118,22 +122,32 @@ class Test():
                         
                 # Check to see if the point is on a frontier (aka Moore Neighboor with an open space)
                 if self.onFrontier(i):
+#                    print 'On frontier'
                     xy = []
                     # If this is the first time we have reached this label then 
                     #   store which row we are going to store that label
                     if labelIndex[labels[i]] == -1:
-                        frontier.append([])
+                        if cur_index > 0:
+                            frontier[labelIndex[cur_index]][0].pop(0)
+                        frontier.append([[0]])
                         labelIndex[labels[i]] = cur_index
                         cur_index += 1
+#                        first_time=True
                         
                     # Next store the index of the map into the correct row of 
                     #   frontier (they are numpy arrays so they are nxmx1)
                     x,y = self.mapIndex2xy(i)
                     xy.append(x)
                     xy.append(y)
-                    frontier[labelIndex[labels[i][0]][0]].append(xy)
+##                    print len(frontier)
+#                    if first_time:
+#                        frontier[labelIndex[labels[i]]][0] =(xy)
+#                        first_time = False
+#                    else:
+                    frontier[labelIndex[labels[i]]][0].append(xy)
                     
-                
+        frontier[labelIndex[cur_index]][0].pop(0)
+#        frontier[labelIndex[cur_index]][0].pop(0) 
         return frontier
                 
     def onFrontier(self, index):
@@ -163,24 +177,24 @@ class Test():
             #   known cell
             if self.testmap[index-1] == 0:
                 connected = True
-            # Check top left
-            if top and self.testmap[index-11] == 0:
-                connected = True
-            # Check bottom left
-            if bottom and self.testmap[index+9] == 0:
-                connected = True
+#            # Check top left
+#            if top and self.testmap[index-11] == 0:
+#                connected = True
+#            # Check bottom left
+#            if bottom and self.testmap[index+9] == 0:
+#                connected = True
         
         if (np.mod(index,self.ogrid_sizeY) != self.ogrid_sizeY-1):
             # Check the cell to the right to see if its connected to a 
             #   known cell
             if self.testmap[index+1] == 0:
                 connected = True
-            # Check top right
-            if top and self.testmap[index-9] == 0:
-                connected = True
-            # Check bottom right
-            if bottom and self.testmap[index+11] == 0:
-                connected = True
+#            # Check top right
+#            if top and self.testmap[index-9] == 0:
+#                connected = True
+#            # Check bottom right
+#            if bottom and self.testmap[index+11] == 0:
+#                connected = True
                 
         return connected
 
@@ -275,7 +289,7 @@ class Test():
         self.markerArray.markers[index].color.g = 0.0
         
         # Publish the markerArray
-        self.marker_pub.publish(self.markerArray)
+#        self.marker_pub.publish(self.markerArray)
         
         return centroidX[index], centroidY[index]
         
@@ -328,13 +342,13 @@ class Test():
         self.position.x = 2.0
         self.position.y = 4.0
         
-        self.ogrid_sizeY = 10
+        self.ogrid_sizeY = 40
         self.buildTestMap()
         
-        self.marker_pub = rospy.Publisher('/viz_marker_array', MarkerArray)
+#        self.marker_pub = rospy.Publisher('/viz_marker_array', MarkerArray)
         
-        frontier = t.getFrontier()
-        return self.pickBestCentroid(frontier)
+#        frontier = self.getFrontier()
+#        self.pickBestCentroid(frontier)
         
 #        frontiers = self.findFrontier()
 #        self.pickBestCentroid(frontiers)
@@ -364,5 +378,5 @@ t = Test()
 #label = np.reshape(label, (10,10))
 #l,equiv = t.blogDetection()
 #label2 = np.reshape(l, (10,10))
-
-#frontier =np.reshape(frontier, (10,10))
+frontier = t.getFrontier()
+#frontier =np.reshape(frontier, (40,40))
