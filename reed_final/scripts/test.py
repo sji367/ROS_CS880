@@ -162,41 +162,91 @@ class Test():
             top = True
             # Check the cell above to see if its connected to a known 
             #   cell
-            if self.testmap[index-10] == 0:
+            if self.testmap[index-10] <50 and self.testmap[index-10]>=0:
                 connected = True
             
         if (index<(self.ogrid_sizeY**2-self.ogrid_sizeY)):
             bottom =True
             # Check the cell below to see if its connected to a known 
             #   cell
-            if self.testmap[index+10] == 0:
+            if self.testmap[index+10] <50 and self.testmap[index-10]>=0:
                 connected = True
             
         if (np.mod(index,self.ogrid_sizeY) != 0):
             # Check the cell to the left to see if its connected to a  
             #   known cell
-            if self.testmap[index-1] == 0:
+            if self.testmap[index-1] <50 and self.testmap[index-10]>=0:
                 connected = True
 #            # Check top left
-#            if top and self.testmap[index-11] == 0:
+#            if top and self.testmap[index-11] <50 and self.testmap[index-10]>=0:
 #                connected = True
 #            # Check bottom left
-#            if bottom and self.testmap[index+9] == 0:
+#            if bottom and self.testmap[index+9] <50 and self.testmap[index-10]>=0:
 #                connected = True
         
         if (np.mod(index,self.ogrid_sizeY) != self.ogrid_sizeY-1):
             # Check the cell to the right to see if its connected to a 
             #   known cell
-            if self.testmap[index+1] == 0:
+            if self.testmap[index+1] <50 and self.testmap[index-10]>=0:
                 connected = True
 #            # Check top right
-#            if top and self.testmap[index-9] == 0:
+#            if top and self.testmap[index-9] <50 and self.testmap[index-10]>=0:
 #                connected = True
 #            # Check bottom right
-#            if bottom and self.testmap[index+11] == 0:
+#            if bottom and self.testmap[index+11] <50 and self.testmap[index-10]>=0:
 #                connected = True
                 
         return connected
+        
+    def Frontier(self):
+        frontier = []
+        for i in range(len(self.testmap)):
+            # Store the frontiers as a list
+            if self.testmap[i]!=-1:
+                if self.onFrontier(i):
+                    x = np.mod(i, 18)
+                    y = (i-x)/18
+                    print i,x,y
+                    frontier.append(i)
+        return frontier
+        
+    def blogDetection2(self, frontier):
+        """ """
+        labels = np.ones_like(frontier, dtype=np.int8)*-1
+        equiv = []
+        cur_label = -1
+        # Do first pass and label
+        for i in frontier:
+            if self.testmap[i]==-1:
+                top = False
+                left = False
+                if (i>self.ogrid_sizeY):
+                    topIndex = i-self.ogrid_sizeY
+                    top = self.testmap[topIndex] ==-1
+                if (np.mod(i,self.ogrid_sizeY) != 0):
+                    leftIndex = i-1
+                    left = self.testmap[leftIndex] ==-1
+                    
+                if not top and not left:
+                    # Make a new label
+                    cur_label +=1
+                    label = cur_label
+                elif top and left:
+                    # mark equivalence
+                    if (labels[topIndex] != labels[leftIndex]):
+                        newEquiv =[]
+                        newEquiv.append(labels[topIndex])
+                        newEquiv.append(labels[leftIndex])
+                        if newEquiv not in equiv:
+                            equiv.append(newEquiv)
+                elif top:
+                    label = labels[topIndex]
+                elif left:
+                    label = labels[leftIndex]
+                    
+                labels[i] = label
+                
+        return labels, equiv  
 
     def findFrontier(self, blobs, blobs_labels):
         """ This function cycles through each cell in the map and finds all 
