@@ -394,29 +394,32 @@ class Frontier_Based_Exploration():
         print 'picking centroid ', len(frontiers)
         
         for i in range(len(frontiers)):
-            x_c, y_c, distance_c = self.calc_centroid(frontiers[i])
+            x_c, y_c, util_c = self.calc_centroid(frontiers[i])
             # Store centroid if it is known and 
             index = self.xy2mapIndex(x_c, y_c)
-#            if self.current_map[index]< 50 and self.current_map[index]>=0:
-            print x_c, y_c
-            self.makeMarker(x_c, y_c, i)
-            centroidX.append(x_c)
-            centroidY.append(y_c)
-            utility.append(distance_c)
+            if self.current_map[index]< 50 and self.current_map[index]>=0:
+#            print x_c, y_c
+                self.makeMarker(x_c, y_c, i)
+                centroidX.append(x_c)
+                centroidY.append(y_c)
+                utility.append(util_c)
+        if len(centroidX)>0:
+            # Determine which centroid is the closest 
+            index = np.argmax(utility)
             
-        # Determine which centroid is the closest 
-        index = np.argmax(utility)
-        
-        # Mark the centroid to navigate to as red
-        self.markerArray.markers[index].color.r = 1.0
-        self.markerArray.markers[index].color.b = 0.0
-        self.markerArray.markers[index].color.g = 0.0
-        
-        # Publish the markerArray
-        self.marker_pub.publish(self.markerArray)
-        print 'published marker'
-        
-        return centroidX[index], centroidY[index]
+            # Mark the centroid to navigate to as red
+            self.markerArray.markers[index].color.r = 1.0
+            self.markerArray.markers[index].color.b = 0.0
+            self.markerArray.markers[index].color.g = 0.0
+            
+            # Publish the markerArray
+            self.marker_pub.publish(self.markerArray)
+            print 'published marker'
+            
+            return centroidX[index], centroidY[index]
+        else:
+            print 'No Valid centroids'
+            return None, None
         
     def makeMarker(self, centroidX, centroidY, ID):
         """ Creates a marker on RVIZ for the centroid of the frontier"""
