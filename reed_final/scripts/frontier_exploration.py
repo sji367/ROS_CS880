@@ -56,14 +56,21 @@ class Frontier_Based_Exploration():
         
     def costmap_callback(self, map_msg):
         """ Callback to handle Map messages. """
-        print map_msg.info
-        self.new_msg = True 
+#        print map_msg.info
+#        self.new_msg = True 
         
         self.meta.resolution= map_msg.info.resolution
-        self.meta.height = map_msg.height
-        self.meta.width = map_msg.width
-        self.meta.origin.position.x = map_msg.origin.position.x
-        self.meta.origin.position.y = map_msg.origin.position.y
+        self.meta.height = map_msg.info.height
+        self.meta.width = map_msg.info.width
+        self.meta.origin.position.x = map_msg.info.origin.position.x
+        self.meta.origin.position.y = map_msg.info.origin.position.y
+        
+        self.current_map.data = map_msg.data
+        self.ogrid_sizeX = map_msg.info.height
+        self.ogrid_sizeY = map_msg.info.width
+        
+        self.origin.x = map_msg.info.origin.position.x
+        self.origin.y = map_msg.info.origin.position.y
     
     def scan_callback(self, scan_msg):
         self.scan.ranges = scan_msg.ranges
@@ -71,8 +78,9 @@ class Frontier_Based_Exploration():
         self.scan.angle_min = scan_msg.angle_min
         
     def status_callback(self, status_msg):
-        self.move_base_status.status = status_msg.status_list[-1].status
-        print self.move_base_status.status
+        if  len(status_msg.status_list) >0:
+            self.move_base_status.status = status_msg.status_list[-1].status
+            print self.move_base_status.status
 #        print scan_msg
         
 #    
@@ -115,13 +123,19 @@ class Frontier_Based_Exploration():
         """ Converts the local X,Y coordinates to the grid coordinate system."""
         gridX = int(round(x/self.grid_size))+self.origin.x
         gridY = int(round(y/self.grid_size))+self.origin.y
+#        gridX = int(round((x-self.origin.x)/self.grid_size))
+#        gridY = int(round((y-self.origin.y)/self.grid_size))
         return gridX,gridY
         
     def grid2xy(self, gridX, gridY):
         """ Converts the grid coordinates to the local X,Y. """
         x = (gridX-self.origin.x)*self.grid_size
         y = (gridY-self.origin.y)*self.grid_size
+#        x = gridX*self.grid_size+self.origin.x
+#        y = gridY*self.grid_size+self.origin.y
         return x,y
+        
+#x = x_c*0.15-20.25
         
     def xy2mapIndex(self, x,y):
         """ Converts the x,y grid coordinates into a row-major index for the 
@@ -251,141 +265,15 @@ class Frontier_Based_Exploration():
 #        print self.meta.origin.position.x, self.meta.origin.position.y
         self.pub_map.publish(self.current_map)
                 
-    def blogDetection(self):
-        """ """
-        labels = np.ones_like(self.current_map.data, dtype=np.int8)*-1
-        equiv = []
-        cur_label = -1
-        # Do first pass and label
-        for i in range(len(self.current_map.data)):
-            if self.current_map.data[i]==-1:
-                top = False
-                left = False
-                if (i>self.ogrid_sizeY):
-                    topIndex = i-self.ogrid_sizeY
-                    top = self.current_map.data[topIndex] ==-1
-                if (np.mod(i,self.ogrid_sizeY) != 0):
-                    leftIndex = i-1
-                    left = self.current_map.data[leftIndex] ==-1
-                    
-                if not top and not left:
-                    # Make a new label
-                    cur_label +=1
-                    label = cur_label
-                    print label
-                elif top and left:
-                    # mark equivalence
-                    if (labels[topIndex] != labels[leftIndex]):
-                        newEquiv =[]
-                        newEquiv.append(labels[topIndex])
-                        newEquiv.append(labels[leftIndex])
-                        if newEquiv not in equiv:
-                            equiv.append(newEquiv)
-                elif top:
-                    label = labels[topIndex]
-                elif left:
-                    label = labels[leftIndex]
-                    
-                labels[i] = label
-                
-        print equiv
-        return labels, equiv     
         
-        
-    def getFrontier(self):
-        """ """ 
-        frontier = []
-        cur_index = 0
-        labels, equiv = self.blogDetection()
-        labelIndex = np.ones((max(labels)+1,1), dtype=np.int8)*-1
-        print 'start'
-        #Second pass to remove equivilencies and store the frontiers
-        num_equiv = len(equiv)
-        for i in range(len(labels)):
-            # Store the frontiers as a list
-            if labels[i]!=-1:
-                # Remove the equivalencies
-                for ii in range(num_equiv):
-                    if labels[i] == equiv[ii][0]:
-                        labels[i] = equiv[ii][1]
-                        
-                # Check to see if the point is on a frontier (aka Moore Neighboor with an open space)
-                if self.onFrontier(i):
-                    print "on frontier!"
-                    xy = []
-                    # If this is the first time we have reached this label then 
-                    #   store which row we are going to store that label
-                    if labelIndex[labels[i]] == -1:
-                        frontier.append([])
-                        labelIndex[labels[i]] = cur_index
-                        cur_index += 1
-                        
-                    # Next store the index of the map into the correct row of 
-                    #   frontier (they are numpy arrays so they are nxmx1)
-                    x,y = self.mapIndex2xy(i)
-                    xy.append(x)
-                    xy.append(y)
-                    frontier[labelIndex[labels[i][0]]].append(xy)
-                    
-        print 'got frontiers'        
-        return frontier
-                
     def onFrontier(self, index):
         """ This function takes in an index of a cell in the map and determines
             if it is part of the frontier. The frontier is defined as regions
             on the border of empty space and unknown space.
         """
         connected = False
-        top = False
-        bottom = False
-        if (index>self.ogrid_sizeY):
-            top = True
-            # Check the cell above to see if its connected to a known 
-            #   cell
-            if self.current_map.data[index-10] < 50 and self.current_map.data[index]>=0:
-                connected = True
-            
-        if (index<(self.ogrid_sizeY**2-self.ogrid_sizeY)):
-            bottom =True
-            # Check the cell below to see if its connected to a known 
-            #   cell
-            if self.current_map.data[index+10] < 50 and self.current_map.data[index]>=0:
-                connected = True
-            
-        if (np.mod(index,self.ogrid_sizeY) != 0):
-            # Check the cell to the left to see if its connected to a  
-            #   known cell
-            if self.current_map.data[index-1] < 50 and self.current_map.data[index]>=0:
-                connected = True
-            # Check top left
-            if top and self.current_map.data[index-11] < 50 and self.current_map.data[index]>=0:
-                connected = True
-            # Check bottom left
-            if bottom and self.current_map.data[index+9] < 50 and self.current_map.data[index]>=0:
-                connected = True
-        
-        if (np.mod(index,self.ogrid_sizeY) != self.ogrid_sizeY-1):
-            # Check the cell to the right to see if its connected to a 
-            #   known cell
-            if self.current_map.data[index+1] < 50 and self.current_map.data[index]>=0:
-                connected = True
-            # Check top right
-            if top and self.current_map.data[index-9] < 50 and self.current_map.data[index]>=0:
-                connected = True
-            # Check bottom right
-            if bottom and self.current_map.data[index+11] < 50 and self.current_map.data[index]>=0:
-                connected = True
-                
-        return connected
-        
-    def onFrontier2(self, index):
-        """ This function takes in an index of a cell in the map and determines
-            if it is part of the frontier. The frontier is defined as regions
-            on the border of empty space and unknown space.
-        """
-        connected = False
-        top = False
-        bottom = False
+#        top = False
+#        bottom = False
         
         if (index>self.ogrid_sizeX):
 #            top = True
@@ -435,13 +323,13 @@ class Frontier_Based_Exploration():
 #            print i, self.mapIndex2xy(i), self.current_map.data[i]
             # Store the frontiers as a list
             if self.current_map.data[i]==-1:
-                if self.onFrontier2(i):
+                if self.onFrontier(i):
 #                    x,y = self.mapIndex2xy(i)
 #                    print i,x,y
                     frontier.append(i)
         return frontier
         
-    def blogDetection2(self, frontier):
+    def blogDetection(self, frontier):
         """ """
         labels = np.zeros_like(frontier, dtype=np.int8)
         full_labels = np.ones_like(self.current_map.data, dtype=np.int8)*-1
@@ -537,56 +425,11 @@ class Frontier_Based_Exploration():
             labels[cntr] = label
             
         return labels, equiv
-
-    def getFrontier2(self):
-        """ """ 
-        ### THIS DOES NOT WORK YET!!!!"
-        frontier = []
-        cur_index = 0
-        
-        f = self.Frontier()
-        labels, equiv = self.blogDetection2(f)
-        labelIndex = np.ones((max(labels)+1,1), dtype=np.int8)*-1
-        print equiv, max(labels)
-        #Second pass to remove equivilencies and store the frontiers
-        num_equiv = len(equiv)
-        for i in range(len(labels)):
-            
-            # Remove the equivalencies
-            for ii in range(num_equiv):
-                if labels[i] == equiv[ii][0]:
-                    labels[i] = equiv[ii][1]
-                    
-            
-            xy = []
-            # If this is the first time we have reached this label then 
-            #   store which row we are going to store that label
-            if labelIndex[labels[i]] == -1:
-                if cur_index > 0:
-                    frontier[labelIndex[cur_index]][0].pop(0)
-                frontier.append([[0]])
-                labelIndex[labels[i]] = cur_index
-                cur_index += 1
-#                        first_time=True
-                
-            # Next store the index of the map into the correct row of 
-            #   frontier (they are numpy arrays so they are nxmx1)
-            x,y = self.mapIndex2xy(f[i])
-#            print x,y
-            xy.append(x)
-            xy.append(y)
-            
-            frontier[labelIndex[labels[i]]][0].append(xy)
-                    
-        frontier[labelIndex[cur_index-1]][0].pop(0)
-#        frontier[labelIndex[cur_index]][0].pop(0) 
-        
-        return frontier
     
-    def getFrontier3(self):
+    def getFrontier(self):
         """ """ 
         unlabeledFrontier = self.Frontier()
-        labels, equiv = self.blogDetection2(unlabeledFrontier)        
+        labels, equiv = self.blogDetection(unlabeledFrontier)        
         
         # Initialize the frontier list
         frontier = []
@@ -617,11 +460,13 @@ class Frontier_Based_Exploration():
                  frontier[labels[i]].append(xy)
         
         removed = 0
-        for i in range(max(labels)+1):
+        for i in range(len(frontier)):
             index = i-removed
             if frontier[index] == [0]:
                 frontier.pop(index)
                 removed+= 1
+#        if frontier[-1] == [0]:
+#            frontier.pop(-1)
         
         return frontier 
         
@@ -673,7 +518,7 @@ class Frontier_Based_Exploration():
             # Publish the markerArray 
             # NEED TO REMOVE OLD MARKERS!!!
             self.marker_pub.publish(self.markerArray)
-            print 'published marker'
+            print 'published marker ', centroidX[index], centroidY[index]
             
             return centroidX[index], centroidY[index]
         else:
@@ -703,9 +548,9 @@ class Frontier_Based_Exploration():
         RVIZmarker.pose.orientation.w = 1.0
         
         # Define the scale (meter scale)
-        RVIZmarker.scale.x = 0.1
-        RVIZmarker.scale.y = 0.1
-        RVIZmarker.scale.z = 0.1
+        RVIZmarker.scale.x = 0.3
+        RVIZmarker.scale.y = 0.3
+        RVIZmarker.scale.z = 0.3
         
         # Set the color 
         RVIZmarker.color.a = 1.0
@@ -739,21 +584,16 @@ class Frontier_Based_Exploration():
         origin = Position()
         origin.x = self.ogrid_sizeX/2
         origin.y = self.ogrid_sizeY/2
-        origin.theta = 0
+        origin.theta = 0        
         
-#        trans, rot = self.listener.lookupTransform('map', 'base_link', rospy.Time(0))
-        self.current_map.info.origin = self.meta.origin
-#        self.current_map.info.origin.position.x = origin.x*self.grid_size
-#        self.current_map.info.origin.position.y = origin.y*self.grid_size
-#        self.current_map.info.origin.orientation.z = rot[2]
-#        self.current_map.info.origin.orientation.w = rot[3]
-        self.current_map.info.height = self.ogrid_sizeX
-        self.current_map.info.width = self.ogrid_sizeY
-        self.current_map.info.resolution = self.grid_size
+#        self.current_map.info.origin = self.meta.origin
+#        self.current_map.info.height = self.ogrid_sizeX
+#        self.current_map.info.width = self.ogrid_sizeY
+#        self.current_map.info.resolution = self.grid_size
         
         return origin
     
-    def newPose(self, x, y, rot_z=0.0,rot_w=0.0):
+    def newPose(self, x, y, rot_z=0.1,rot_w=0.1):
         """Takes in the new waypoint and sets the new goal position"""
         # Convert the grid coordinates to XY coordinates
 #        gridX, gridY = self.grid2xy(centroidX, centroidY)
@@ -809,16 +649,21 @@ class Frontier_Based_Exploration():
         # IN THIS LOOP ROS SENDS AND RECEIVES  
 #        start = rospy.Time.now().to_sec()
         while not rospy.is_shutdown() and (rospy.Time.now().to_sec()-start) > 1:
-            self.updateMap()
-            if  self.move_base_status.status != GoalStatus.ACTIVE:
+#            self.updateMap()
+            
+            pos = self.get_current_position()
+            x,y = self.xy2grid(pos.x,pos.y)
+            print 'pos in grid: ', x,y, self.grid2xy(x,y)
+            if  self.move_base_status.status not in [GoalStatus.ACTIVE, GoalStatus.PREEMPTING, GoalStatus.RECALLING, GoalStatus.PENDING]:
                 if self.robotState == RobotState.spin_0_180:
                     self.spin180(False)
                     
                 elif self.robotState == RobotState.spin_180_360:
-                    return
-                    frontiers = self.getFrontier3()
+#                    return
+                    frontiers = self.getFrontier()
                     centroidX, centroidY = self.pickBestCentroid(frontiers)
                     self.move2frontier(centroidX, centroidY)
+#                    return
                 
                 elif self.robotState == RobotState.move_base:
                     self.spin180(True)
@@ -872,7 +717,7 @@ class Frontier_Based_Exploration():
 #        self.odom_sub = rospy.Subscriber("/odom", Odometry, self.odom_callback)
 #        self.feedback_sub = rospy.Subscriber("/move_base/status", PoseStamped, self.feedback_callback)
         self.scan_sub = rospy.Subscriber("/scan", LaserScan, self.scan_callback)
-        self.sub_map = rospy.Subscriber('/map/info', MapMetaData, self.costmap_callback)
+        self.sub_map = rospy.Subscriber('/map', OccupancyGrid, self.costmap_callback)
         self.sub_status = rospy.Subscriber('/move_base/status', GoalStatusArray, self.status_callback)
         
         self.listener.waitForTransform('/map', '/base_link', rospy.Time(0), rospy.Duration(1))
