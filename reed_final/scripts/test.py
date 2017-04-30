@@ -152,7 +152,7 @@ class Test():
 #        frontier[labelIndex[cur_index]][0].pop(0) 
         return frontier
                 
-    def onFrontier(self, index):
+    def onFrontier2(self, index):
         """ This function takes in an index of a cell in the map and determines
             if it is part of the frontier. The frontier is defined as regions
             on the border of empty space and unknown space.
@@ -209,7 +209,7 @@ class Test():
 #            print i, self.mapIndex2xy(i), self.testmap[i]
             # Store the frontiers as a list
             if self.testmap[i]==-1:
-                if self.onFrontier(i):
+                if self.onFrontier2(i):
 #                    x,y = self.mapIndex2xy(i)
 #                    print i,x,y
                     frontier.append(i)
@@ -319,8 +319,8 @@ class Test():
         cur_index = 0
         
         labels, equiv = self.blogDetection2(f)
-        labelIndex = np.ones((max(labels)+1,1), dtype=np.int8)*-1
-        print equiv, max(labels)
+        labelIndex = [0]*(max(labels)+1)#np.ones((max(labels)+1,1), dtype=np.int8)*-1
+#        print equiv, max(labels)
         #Second pass to remove equivilencies and store the frontiers
         num_equiv = len(equiv)
         for i in range(len(labels)):
@@ -351,10 +351,48 @@ class Test():
             
             frontier[labelIndex[labels[i]]][0].append(xy)
                     
-        frontier[labelIndex[cur_index-1]][0].pop(0)
+#        frontier[labelIndex[cur_index-1]][0].pop(0)
 #        frontier[labelIndex[cur_index]][0].pop(0) 
         return frontier
+        
+    def getFrontier3(self):
+        """ """ 
+        unlabeledFrontier = self.Frontier()
+        labels, equiv = self.blogDetection2(unlabeledFrontier)        
+        
+        # Initialize the frontier list
+        frontier = []
+        for n in range(max(labels)+1):
+            frontier.append([0])
+            
+        # Second pass to remove equivilencies and store the frontiers    
+        num_equiv = len(equiv) 
+        for i in range(len(labels)):
+            # Remove the equivalencies
+            for ii in range(num_equiv):
+                if labels[i] == equiv[ii][0]:
+                    labels[i] = equiv[ii][1]
+                    
+            # Next store the index of the map into the correct row of the
+            #   frontier 
+            xy = []
+            if frontier[labels[i]] == [0]:
+                 x,y = self.mapIndex2xy(unlabeledFrontier[i])
+                 xy.append(x)
+                 xy.append(y)
+                 frontier[labels[i]].append(xy)
+                 frontier[labels[i]].pop(0)
+            else:
+                 x,y = self.mapIndex2xy(unlabeledFrontier[i])
+                 xy.append(x)
+                 xy.append(y)
+                 frontier[labels[i]].append(xy)
+                 
+        for i in range(max(labels)+1):
+            if frontier[i] == [0]:
+                frontier[i].pop(0)
                 
+        return frontier 
 
     def calcUtil_dist(self, centroidX, centroidY):
         """ Calculate the utility of the frontier's centroid using just the
@@ -375,7 +413,7 @@ class Test():
         """
         if len(points) == 0:
             return
-        num_Rows = len(points[0])
+        num_Rows = len(points)
         x_c, y_c = np.sum(points, axis=0)
         x_c /= int(np.round(1.0*num_Rows))
         y_c /= int(np.round(1.0*num_Rows))
@@ -498,11 +536,11 @@ frontier = t.Frontier()
 lab, equiv=t.blogDetection2(frontier)
 #frontier =np.reshape(frontier, (40,40))
 
-f = t.getFrontier2(frontier)
+f = t.getFrontier3()
 one = np.ones_like(np.reshape(t.testmap, (40,40)))*-1
 for i in range(len(f)):
-    for j in range(len(f[i][0])):
+    for j in range(len(f[i])):
 #        if type(f[i][0][j]) != int:
-        x=f[i][0][j][0]
-        y=f[i][0][j][1]
+        x=f[i][j][0]
+        y=f[i][j][1]
         one[y][x] = i
