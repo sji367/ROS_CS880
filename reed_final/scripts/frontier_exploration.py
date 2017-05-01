@@ -78,8 +78,14 @@ class Frontier_Based_Exploration():
         self.scan.angle_min = scan_msg.angle_min
         
     def status_callback(self, status_msg):
+        """ """
+#        ID =[]
         if  len(status_msg.status_list) >0:
-            self.move_base_status.status = status_msg.status_list[-1].status
+            for i in range(len(status_msg.status_list)):
+                ID = int(status_msg.status_list[i].goal_id.id.split('-')[1])
+#                print ID,self.WPT_ID
+                if ID == self.WPT_ID:
+                    self.move_base_status.status = status_msg.status_list[i].status
 #            print self.move_base_status.status
                                                                      
     
@@ -246,7 +252,7 @@ class Frontier_Based_Exploration():
             if self.gmapping_map.data[index-self.ogrid_sizeX] <50 and self.gmapping_map.data[index-self.ogrid_sizeX]>=0:
                 connected = True
             
-        if (index<(self.ogrid_sizeX**2-self.ogrid_sizeX)): # check this math
+        if (index<(self.ogrid_sizeX*self.ogrid_sizeY-self.ogrid_sizeX)): # check this math
 #            bottom =True
             # Check the cell below to see if its connected to a known 
             #   cell
@@ -423,12 +429,14 @@ class Frontier_Based_Exploration():
                  xy.append(y)
                  frontier[labels[i]].append(xy)
         
+        # Remove all frontiers smaller than 1 meter
         removed = 0
         for i in range(len(frontier)):
             index = i-removed
             if len(frontier[index])<int(1/self.grid_size):
                 frontier.pop(index)
                 removed+= 1
+                
 #        if frontier[-1] == [0]:
 #            frontier.pop(-1)
         
@@ -447,30 +455,31 @@ class Frontier_Based_Exploration():
         x_c, y_c = np.sum(points, axis=0)
         x_c /= int(np.round(1.0*num_Rows))
         y_c /= int(np.round(1.0*num_Rows))
-        return x_c, y_c, self.calcUtility(x_c, y_c, len(points))
+#        return x_c, y_c, self.calcUtility(x_c, y_c, len(points))
+        return x_c, y_c, self.calcUtil_dist(x_c, y_c)
         
     def pickBestCentroid(self, frontiers):
         """ Takes in all frontiers (as a 3D array) and choses the best frontier"""
         centroidX = []
         centroidY = []
         utility = []
-        # Reinitialize the marker array
-#        self.markerArray = MarkerArray()
-        print 'picking between {} centroids'.format(len(frontiers))
-        print frontiers
         
+#        print frontiers
+        centroid_index = 0
         for i in range(len(frontiers)):
             x_c, y_c, util_c = self.calc_centroid(frontiers[i])
             # Store centroid if it is known and 
             index = self.xy2mapIndex(x_c, y_c)
             x_c, y_c = self.grid2xy(x_c, y_c)
-            if self.gmapping_map.data[index]< 50: #and self.gmapping_map.data[index]>=0:
-           
-                self.makeMarker(x_c, y_c, i)
-                centroidX.append(x_c)
-                centroidY.append(y_c)
-                utility.append(util_c)
-        
+            if self.gmapping_map.data[index]< 50:# and self.gmapping_map.data[index]>=0:
+                if [x_c, y_c] not in self.unreachable_frontiers:
+                    self.makeMarker(x_c, y_c, centroid_index)
+                    centroidX.append(x_c)
+                    centroidY.append(y_c)
+                    utility.append(util_c)
+                    centroid_index += 1
+                
+        print 'picking between {} centroids'.format(len(centroidX))
         if len(centroidX)>0:
             # Determine which centroid is the closest 
             index = np.argmax(utility)
@@ -480,20 +489,18 @@ class Frontier_Based_Exploration():
             self.markerArray.markers[index].color.b = 0.0
             
             # Remove old markers
-            for ii in range(len(frontiers), len(self.markerArray.markers)):
-                print 'removing marker', ii
+            for ii in range(len(utility), len(self.markerArray.markers)):
                 self.markerArray.markers[ii].action = Marker.DELETE
             
             # Publish the markerArray 
-            # NEED TO REMOVE OLD MARKERS!!!
             self.marker_pub.publish(self.markerArray)
             
             # Remove markers from array
-            for iii in range(len(frontiers), len(self.markerArray.markers)):
+            for iii in range(len(utility), len(self.markerArray.markers)):
                 self.markerArray.markers.pop(-1)
                 
                 
-            print 'published marker ', centroidX[index], centroidY[index], index
+            print 'Navigating to', centroidX[index], centroidY[index]
             
             return centroidX[index], centroidY[index]
         else:
@@ -533,13 +540,10 @@ class Frontier_Based_Exploration():
         RVIZmarker.color.g = 0.0
         RVIZmarker.color.b = 1.0
         
-        print ID, len(self.markerArray.markers)
         #Store the marker
         if len(self.markerArray.markers) <= ID:
-            print ID, len(self.markerArray.markers) 
             self.markerArray.markers.append(RVIZmarker)
         else:
-            print 'update'
             self.markerArray.markers[ID] = RVIZmarker
         
     def get_current_position(self):
@@ -595,6 +599,8 @@ class Frontier_Based_Exploration():
         new.pose.orientation.z = rot_z
         new.pose.orientation.w = rot_w
         
+        self.WPT_ID +=1
+        
         # Publish the new position
         self.cmd_pose.publish(new)
     
@@ -613,52 +619,62 @@ class Frontier_Based_Exploration():
         
         # Set the new pose
         self.newPose(pos.x, pos.y, rot_z=z,rot_w = w)
-        print 'new pose'
         
     def move2frontier(self,centroidX, centroidY):
         self.newPose(centroidX, centroidY)
         self.robotState = RobotState.move_base
-        
-#    def removeMarkers(self):
-        
-        
+                
     def run(self):
         """ Runs the frontier based exploration. """
-#        pass
         start = rospy.Time.now().to_sec()
         while (rospy.Time.now().to_sec()-start) < 1:
             self.r.sleep()
+            
+        print 'spinning', self.WPT_ID +1
         self.spin180(True)
+        centroidX = 0
+        centroidY = 0
         while not rospy.is_shutdown() and (rospy.Time.now().to_sec()-start) > 1:
-            self.updateMap()
-#            
-#            pos = self.get_current_position()
-#            x,y = self.xy2grid(pos.x,pos.y)
-            if  self.move_base_status.status not in [GoalStatus.ACTIVE, GoalStatus.PREEMPTING, GoalStatus.RECALLING, GoalStatus.PENDING]:                
-                if self.robotState == RobotState.spin_0_180:
-                    print 'spining'
-                    self.spin180(False)
-                    
-                elif self.robotState == RobotState.spin_180_360:
-                    print 'move to centroid'
-#                    return
-                    frontiers = self.getFrontier()
-                    if len(frontiers) == 0:
-                        return
-                    centroidX, centroidY = self.pickBestCentroid(frontiers)
-                    self.move2frontier(centroidX, centroidY)
-#                    return
+            try:
+                self.updateMap()
                 
-                elif self.robotState == RobotState.move_base:
-                    print 'spining'
-                    self.spin180(True)
-            self.r.sleep()
+                if  self.move_base_status.status not in [GoalStatus.ACTIVE, GoalStatus.PREEMPTING, GoalStatus.RECALLING, GoalStatus.PENDING]:                
+                    # print error message                    
+                    if self.move_base_status.status in [GoalStatus.ABORTED, GoalStatus.REJECTED, GoalStatus.SUCCEEDED]:
+                        if self.move_base_status.status in [GoalStatus.ABORTED, GoalStatus.REJECTED]:
+                            print 'Failed to reach state', self.WPT_ID        
+                    
+                        # Update the robot state
+                        if self.robotState == RobotState.spin_0_180:
+                            print 'spining', self.WPT_ID+1   
+                            self.spin180(False)
+                            
+                        elif self.robotState == RobotState.spin_180_360:
+                            print 'move to centroid', self.WPT_ID+1   
+                            frontiers = self.getFrontier()
+                            if len(frontiers) == 0:
+                                return
+                            centroidX, centroidY = self.pickBestCentroid(frontiers)
+                            self.move2frontier(centroidX, centroidY)
+                        
+                        elif self.robotState == RobotState.move_base:
+                            if self.move_base_status.status in [GoalStatus.ABORTED, GoalStatus.REJECTED]:
+                                self.unreachable_frontiers.append([centroidX, centroidY])
+                            print 'spining', self.WPT_ID +1   
+                            self.spin180(True)
+                self.r.sleep()
+                        
+            except KeyboardInterrupt:
+                print 'Exiting'     
             
         # At the end remove all rviz markers
+        print 'Removing Markers'
         for ii in range(len(self.markerArray.markers)):
             self.markerArray.markers[ii].action = Marker.DELETE
-        self.marker_pub(self.markerArray)
-        self.r.sleep()
+        self.marker_pub.publish(self.markerArray)
+        for i in range(5):
+            self.r.sleep()
+        print 'exiting'
         
     def __init__(self):
         """ Initialize """
@@ -697,8 +713,13 @@ class Frontier_Based_Exploration():
         
         # Initialize the map as unknown (-1)
         self.current_map.data = [-1]*self.ogrid_sizeX*self.ogrid_sizeY # row-major order
+        self.unreachable_frontiers = []
+        self.WPT_ID = 0
 #        print len(self.current_map.data)
         # loop rate
+        
+        self.origin = self.setOrigin()
+        
         self.r = rospy.Rate(50)
         
         # publishers for OccupancyGrid and move base messages
@@ -715,7 +736,6 @@ class Frontier_Based_Exploration():
         
         self.listener.waitForTransform('/map', '/base_link', rospy.Time(0), rospy.Duration(1))
         
-        self.origin = self.setOrigin()
         #self.listener.waitForTransform('/scan', '/base_link', rospy.Time(0), rospy.Duration(1)) # Need to test this
         self.run()
         
