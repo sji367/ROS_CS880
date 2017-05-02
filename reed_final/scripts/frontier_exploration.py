@@ -83,19 +83,16 @@ class Frontier_Based_Exploration():
         """ """
         if  len(status_msg.status_list) >0:
             for i in range(len(status_msg.status_list)):
-                # Make sure to listen only to the status of the current objective
                 ID = int(status_msg.status_list[i].goal_id.id.split('-')[1])
-                if ID == self.WPT_ID:
-                    self.move_base_status.status = status_msg.status_list[i].status
+                # Store the stautus of all WPTs
+                if len(self.move_base_status) >= ID+1:
+                    self.move_base_status[ID] = status_msg.status_list[i].status
+                else:
+                    self.move_base_status.append(status_msg.status_list[i].status)
 #            print self.move_base_status.status
                     
     def odom_callback(self, odom_msg):
-        """ callback to handle odometry messages"""
-        # Store previous odometery
-        self.prev_odom.x =  self.cur_odom.x 
-        self.prev_odom.y =  self.cur_odom.y
-        self.prev_odom.theta =  self.cur_odom.theta 
-        
+        """ callback to handle odometry messages"""        
         # convert those into x/y/theta positions
         self.cur_odom.x = odom_msg.pose.pose.position.x
         self.cur_odom.y = odom_msg.pose.pose.position.y
@@ -135,7 +132,9 @@ class Frontier_Based_Exploration():
         return x,y
         
     def distanceFomula(self, x1,y1, x2,y2):
-         return np.sqrt(np.square(x2 - x1) + np.square(y2-y1))
+         dist =  np.sqrt(np.square(x2 - x1) + np.square(y2-y1))
+#         print dist
+         return dist
          
     def calcCost(self, centroidX, centroidY, frontierLength):
         """ Calculate the cost of the frontier's centroid using a combo of
@@ -147,11 +146,12 @@ class Frontier_Based_Exploration():
         cost = (length_weight*frontierLength)/(dist_weight*dist)
         return cost
         
-    def calcCost_dist(self, centroidX, centroidY):
+    def calcCost_dist(self, X, Y):
         """ Calculate the cost of the frontier's centroid using just the
             distance to the centroid. 
         """
-        dist = self.distanceFomula(centroidX, centroidY, self.position.x, self.position.y)
+#        print X,Y, self.position.x, self.position.y
+        dist = self.distanceFomula(X, Y, self.position.x, self.position.y)
         return dist
         
     def setOccupancy(self, index, prior, Free):
@@ -473,7 +473,8 @@ class Frontier_Based_Exploration():
         x_c /= int(np.round(1.0*num_Rows))
         y_c /= int(np.round(1.0*num_Rows))
 #        return x_c, y_c, self.calcCost(x_c, y_c, len(points))
-        return x_c, y_c, self.calcCost_dist(x_c, y_c)
+        x,y = self.grid2xy(x_c, y_c)
+        return x_c, y_c, self.calcCost_dist(x,y)
     
     def pickBestCentroid(self, frontiers):
         """ Takes in all frontiers (as a 3D array) and choses the best frontier"""
@@ -488,7 +489,7 @@ class Frontier_Based_Exploration():
             # Store centroid if it is known and 
             index = self.xy2mapIndex(x_c, y_c)
             x_c, y_c = self.grid2xy(x_c, y_c)
-            if self.gmapping_map.data[index]< 50:# and self.gmapping_map.data[index]>=0:
+            if self.gmapping_map.data[index]< 30:# and self.gmapping_map.data[index]>=0:
                 if [x_c, y_c] not in self.unreachable_frontiers:
                     self.makeMarker(x_c, y_c, centroid_index)
                     self.centroidX.append(x_c)
@@ -498,36 +499,44 @@ class Frontier_Based_Exploration():
                 
         return self.bestCentroid()
             
+    def updateBestCentoid(self):
+        """ """
+        for i in range(len(self.centroidX)):
+            # Update the cost
+            self.cost[i] = self.calcCost_dist(self.centroidX[i], self.centroidY[i])
+            
+        return self.bestCentroid()
+        
     def bestCentroid(self):
         """ This function takes the precalculated x/y and cost values of the 
             centroid and picks the returns the index to the cell that has the minimum cost"""
         print 'picking between {} centroids'.format(len(self.centroidX))
         if len(self.centroidX)>0:
             # Determine which centroid is the closest 
-            index = np.argmax(self.cost)
+            index = np.argmin(self.cost)
             
             # Mark the centroid to navigate to as red
             self.markerArray.markers[index].color.r = 1.0
             self.markerArray.markers[index].color.b = 0.0
             
             # Remove old markers
-            for ii in range(len(self.cost), len(self.markerArray.markers)):
+            for ii in range(len(self.cost)+self.current_failed, len(self.markerArray.markers)):
                 self.markerArray.markers[ii].action = Marker.DELETE
             
             # Publish the markerArray 
             self.marker_pub.publish(self.markerArray)
             
             # Remove markers from array
-            for iii in range(len(self.cost), len(self.markerArray.markers)):
+            for iii in range(len(self.cost)+self.current_failed, len(self.markerArray.markers)):
                 self.markerArray.markers.pop(-1)
                 
                 
-            print '\tNavigating to', self.centroidX[index], self.centroidY[index]
+            print 'Navigating to', self.centroidX[index], self.centroidY[index], index
             
             return index
         else:
             print '\tNo Valid centroids'
-            return None
+            return -1
         
         
     def makeMarker(self, centroidX, centroidY, ID, action = Marker.ADD):
@@ -568,6 +577,15 @@ class Frontier_Based_Exploration():
             self.markerArray.markers.append(RVIZmarker)
         else:
             self.markerArray.markers[ID] = RVIZmarker
+            
+    def removeAllMarkers(self):
+        """This function removes all markers from rviz"""
+        for i in range(len(self.markerArray.markers)):
+            self.markerArray.markers[i].action = Marker.DELETE
+            
+        self.marker_pub.publish(self.markerArray)
+        
+        self.markerArray = MarkerArray()
         
     def get_current_position(self):
         """ Callback to get the current position"""
@@ -619,8 +637,6 @@ class Frontier_Based_Exploration():
         new.pose.orientation.z = rot_z
         new.pose.orientation.w = rot_w
         
-        self.WPT_ID +=1
-        
         # Publish the new position
         self.cmd_pose.publish(new)
     
@@ -644,27 +660,30 @@ class Frontier_Based_Exploration():
         """ Calculates the angle traveled between the current and previous 
             angle.
         """
-        
         diff = self.cur_odom.theta-self.prev_odom.theta
         # If there is a big jump, then it must have crossed the -180/180 
         #  boundary.
         if abs(diff)>np.pi:
-            diff -= 2*np.pi
+            diff = abs(diff) - 2*np.pi
+            np.sign(diff) == -1
             diff *= -1
-            
+        
         self.angle_trav += diff
         
     def spin360(self):
-        """ Spins the robot 360 degrees w.r.t the odometer"""
+        """ Spins the robot 360 degrees w.r.t the odometer"""            
+        self.angle_traveled() 
+        
         if self.start_spin:
+            self.removeAllMarkers()
             self.robotState = RobotState.spin
             self.angle_trav = 0
             self.start_spin = False
             self.done_spinning = False
-            omega = .5 # Rad/sec
+            print 'init spin'
             
+        omega = .75 # Rad/sec
             
-        self.angle_traveled()
         if (self.angle_trav < np.pi*2):
             # Write a new twist message
             self.cmd_vel.publish(Twist(Vector3(0,0,0),Vector3(0,0,omega)))
@@ -672,6 +691,11 @@ class Frontier_Based_Exploration():
             # turn off Twist
             self.cmd_vel.publish(Twist())
             self.done_spinning = True
+        
+        # Store previous odometery
+        self.prev_odom.x =  self.cur_odom.x 
+        self.prev_odom.y =  self.cur_odom.y
+        self.prev_odom.theta =  self.cur_odom.theta 
         
     def move2frontier(self,X, Y):
         """ Navigate to the centroid of the chosen frontier"""
@@ -683,7 +707,8 @@ class Frontier_Based_Exploration():
         start = rospy.Time.now().to_sec()
         while (rospy.Time.now().to_sec()-start) < 1:
             self.r.sleep()
-            
+        
+        self.start_spin = True
         print 'Spinning'
         self.spin360()
         
@@ -694,14 +719,17 @@ class Frontier_Based_Exploration():
                 #   rotation and if it has, find the frontiers.
                 if self.robotState == RobotState.spin:
                     if self.done_spinning:
-                        print 'Move to centroid', self.WPT_ID+1   
+                        self.robotState = RobotState.move_base
+                        self.current_failed = 0                
+                        self.WPT_ID +=1
+                        print 'Move to centroid', self.WPT_ID
                         frontiers = self.getFrontier()
                         if len(frontiers) == 0:
-                            break
+                            return
                         index = self.pickBestCentroid(frontiers)
                         if index == -1:
                             print '\tNo more frontiers'
-                            break
+                            return
                         self.move2frontier(self.centroidX[index], self.centroidY[index])
                     else:
                         if self.new_cmd:
@@ -714,23 +742,29 @@ class Frontier_Based_Exploration():
                 if self.robotState == RobotState.move_base:
                     # If it could not reach the centroid, then try the next 
                     #   best one
-                    if self.move_base_status.status in [GoalStatus.ABORTED, GoalStatus.REJECTED]:
-                        print '\tFailed to reach frontier. Trying next one.'
-                        self.unreachable_frontiers.append([self.centroidX[index], self.centroidY[index]])
-                        
-                        # Try next best frontier
-                        self.centroidX.pop(index)
-                        self.centroidY.pop(index)
-                        self.cost.pop(index)
-                        index = self.bestCentroid()
-                        if index == -1:
-                            print '\tNo more frontiers'
-                            break
-                        self.move2frontier(self.centroidX[index], self.centroidY[index])
-                            
-                    if self.move_base_status.status == GoalStatus.SUCCEEDED:
-                        print 'Spining'   
-                        self.spin360()
+                    if len(self.move_base_status) > self.WPT_ID:
+                        if self.move_base_status[self.WPT_ID] in [GoalStatus.ABORTED, GoalStatus.REJECTED]:
+                            print '\tFailed to reach frontier. Trying next one.', self.WPT_ID+1
+                            self.unreachable_frontiers.append([self.centroidX[index], self.centroidY[index]])
+                            self.WPT_ID +=1
+                            # Try next best frontier
+                            self.centroidX.pop(index)
+                            self.centroidY.pop(index)
+                            self.cost.pop(index)
+                            self.current_failed += 1
+                            self.markerArray.markers[index].action = Marker.DELETE
+                            index = self.updateBestCentoid()
+                            if index == -1:
+                                print '\tNo more frontiers'
+                                return
+                            self.move2frontier(self.centroidX[index], self.centroidY[index])
+                                
+                        elif self.move_base_status[self.WPT_ID] == GoalStatus.SUCCEEDED:
+                            self.start_spin = True
+                            print 'Spining'   
+                            self.spin360()
+                    else:
+                        print 'status list is too short', len(self.move_base_status)
                 self.r.sleep()
                         
             except KeyboardInterrupt:
@@ -739,7 +773,7 @@ class Frontier_Based_Exploration():
         # At the end remove all rviz markers
         print 'Removing Markers'
         for ii in range(len(self.markerArray.markers)):
-            self.markerArray.markers[ii].action = Marker.DELETE
+            self.markerArray.markers[ii].action = Marker.DELETErosrun map_server map_saver
         self.marker_pub.publish(self.markerArray)
         for i in range(5):
             self.r.sleep()
@@ -767,7 +801,6 @@ class Frontier_Based_Exploration():
         # Initialize some varables to store the objects to be published/subscribed
         self.position = Position()
         self.robotState = RobotState()
-        self.move_base_status = GoalStatus()
         self.frontierCentroid = Position()
         self.markerArray = MarkerArray()
 #        self.pos = PoseStamped()
@@ -788,7 +821,10 @@ class Frontier_Based_Exploration():
         # Initialize the map as unknown (-1)
         self.current_map.data = [-1]*self.ogrid_sizeX*self.ogrid_sizeY # row-major order
         self.unreachable_frontiers = []
+        self.reached_centroids=[]
         self.WPT_ID = 0
+        self.angle_trav = 0
+        self.move_base_status = [0]
 #        print len(self.current_map.data)
         # loop rate
         
