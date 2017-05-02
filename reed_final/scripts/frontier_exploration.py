@@ -11,7 +11,7 @@ import numpy as np
 import tf
 from nav_msgs.msg import OccupancyGrid, MapMetaData, Odometry
 from visualization_msgs.msg import Marker, MarkerArray
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, Twist, Vector3
 from sensor_msgs.msg import LaserScan
 from actionlib_msgs.msg import GoalStatus, GoalStatusArray
 
@@ -24,6 +24,7 @@ class Position:
     theta = 0.0
     
 class RobotState():
+    spin = 0
     spin_0_180 = 1
     spin_180_360 = 2
     move_base = 3
@@ -73,20 +74,33 @@ class Frontier_Based_Exploration():
         self.origin.y = map_msg.info.origin.position.y
     
     def scan_callback(self, scan_msg):
+        """ Callback for the /scan messages."""
         self.scan.ranges = scan_msg.ranges
         self.scan.angle_increment = scan_msg.angle_increment
         self.scan.angle_min = scan_msg.angle_min
         
     def status_callback(self, status_msg):
         """ """
-#        ID =[]
         if  len(status_msg.status_list) >0:
             for i in range(len(status_msg.status_list)):
+                # Make sure to listen only to the status of the current objective
                 ID = int(status_msg.status_list[i].goal_id.id.split('-')[1])
-#                print ID,self.WPT_ID
                 if ID == self.WPT_ID:
                     self.move_base_status.status = status_msg.status_list[i].status
 #            print self.move_base_status.status
+                    
+    def odom_callback(self, odom_msg):
+        """ callback to handle odometry messages"""
+        # Store previous odometery
+        self.prev_odom.x =  self.cur_odom.x 
+        self.prev_odom.y =  self.cur_odom.y
+        self.prev_odom.theta =  self.cur_odom.theta 
+        
+        # convert those into x/y/theta positions
+        self.cur_odom.x = odom_msg.pose.pose.position.x
+        self.cur_odom.y = odom_msg.pose.pose.position.y
+        self.cur_odom.theta = normalize_angle(self.rotation_distance(odom_msg.pose.pose.orientation.z,
+                                                                     odom_msg.pose.pose.orientation.w))
                                                                      
     
     def xy2grid(self, x,y):
@@ -104,8 +118,6 @@ class Frontier_Based_Exploration():
         x = gridX*self.grid_size+self.origin.x
         y = gridY*self.grid_size+self.origin.y
         return x,y
-        
-#x = x_c*0.15-20.25
         
     def xy2mapIndex(self, x,y):
         """ Converts the x,y grid coordinates into a row-major index for the 
@@ -125,25 +137,25 @@ class Frontier_Based_Exploration():
     def distanceFomula(self, x1,y1, x2,y2):
          return np.sqrt(np.square(x2 - x1) + np.square(y2-y1))
          
-    def calcUtility(self, centroidX, centroidY, frontierLength):
-        """ Calculate the utility of the frontier's centroid using a combo of
+    def calcCost(self, centroidX, centroidY, frontierLength):
+        """ Calculate the cost of the frontier's centroid using a combo of
             the distance to the centroid and the length of the centroid.
         """
         dist_weight = 1
         length_weight = 1
         dist = self.distanceFomula(centroidX, centroidY, self.position.x, self.position.y)
-        util = (length_weight*frontierLength)/(dist_weight*dist)
-        return util
+        cost = (length_weight*frontierLength)/(dist_weight*dist)
+        return cost
         
-    def calcUtil_dist(self, centroidX, centroidY):
-        """ Calculate the utility of the frontier's centroid using just the
+    def calcCost_dist(self, centroidX, centroidY):
+        """ Calculate the cost of the frontier's centroid using just the
             distance to the centroid. 
         """
         dist = self.distanceFomula(centroidX, centroidY, self.position.x, self.position.y)
         return dist
         
     def setOccupancy(self, index, prior, Free):
-        """ """
+        """ This function defines the occupancy of the cells."""
         # If there is no previous data, then use a prior of 0.5 (Beta distribution)
         if prior == -1:
             prior = 0.5
@@ -219,6 +231,8 @@ class Frontier_Based_Exploration():
         self.publishNewMap()
         
     def publishNewMap(self):
+        """ This function publishes an occupancy grid to the ROS topic 
+            /frontier_map."""
         self.current_map.header.frame_id = 'map'
 #        originX = self.origin.x*self.grid_size
 #        originY = self.origin.y*self.grid_size
@@ -288,6 +302,8 @@ class Frontier_Based_Exploration():
         return connected
         
     def Frontier(self):
+        """ This funtion finds the frontier on the map and returns a 1D vector 
+            containing the indices of the cells on the frontier."""
         frontier = []
         for i in range(len(self.gmapping_map.data)):
 #            print i, self.mapIndex2xy(i), self.gmapping_map.data[i]
@@ -300,7 +316,10 @@ class Frontier_Based_Exploration():
         return frontier
         
     def blogDetection(self, frontier):
-        """ """
+        """ This function runs the connected components algorithm on the 
+            inputed frontier, which is a 1D vector containing the indices of 
+            the cells on the frontier.
+        """
         labels = np.zeros_like(frontier, dtype=np.int8)
         full_labels = np.ones_like(self.gmapping_map.data, dtype=np.int8)*-1
         equiv = []
@@ -397,7 +416,8 @@ class Frontier_Based_Exploration():
         return labels, equiv
     
     def getFrontier(self):
-        """ """ 
+        """ This function defines and labels the frontier. If the froniter is 
+            smaller than a meter it is removed.""" 
         unlabeledFrontier = self.Frontier()
         labels, equiv = self.blogDetection(unlabeledFrontier)        
         
@@ -436,9 +456,6 @@ class Frontier_Based_Exploration():
             if len(frontier[index])<int(1/self.grid_size):
                 frontier.pop(index)
                 removed+= 1
-                
-#        if frontier[-1] == [0]:
-#            frontier.pop(-1)
         
         return frontier 
         
@@ -455,57 +472,63 @@ class Frontier_Based_Exploration():
         x_c, y_c = np.sum(points, axis=0)
         x_c /= int(np.round(1.0*num_Rows))
         y_c /= int(np.round(1.0*num_Rows))
-#        return x_c, y_c, self.calcUtility(x_c, y_c, len(points))
-        return x_c, y_c, self.calcUtil_dist(x_c, y_c)
-        
+#        return x_c, y_c, self.calcCost(x_c, y_c, len(points))
+        return x_c, y_c, self.calcCost_dist(x_c, y_c)
+    
     def pickBestCentroid(self, frontiers):
         """ Takes in all frontiers (as a 3D array) and choses the best frontier"""
-        centroidX = []
-        centroidY = []
-        utility = []
+        self.centroidX = []
+        self.centroidY = []
+        self.cost = []
         
 #        print frontiers
         centroid_index = 0
         for i in range(len(frontiers)):
-            x_c, y_c, util_c = self.calc_centroid(frontiers[i])
+            x_c, y_c, cost_c = self.calc_centroid(frontiers[i])
             # Store centroid if it is known and 
             index = self.xy2mapIndex(x_c, y_c)
             x_c, y_c = self.grid2xy(x_c, y_c)
             if self.gmapping_map.data[index]< 50:# and self.gmapping_map.data[index]>=0:
                 if [x_c, y_c] not in self.unreachable_frontiers:
                     self.makeMarker(x_c, y_c, centroid_index)
-                    centroidX.append(x_c)
-                    centroidY.append(y_c)
-                    utility.append(util_c)
+                    self.centroidX.append(x_c)
+                    self.centroidY.append(y_c)
+                    self.cost.append(cost_c)
                     centroid_index += 1
                 
-        print 'picking between {} centroids'.format(len(centroidX))
-        if len(centroidX)>0:
+        return self.bestCentroid()
+            
+    def bestCentroid(self):
+        """ This function takes the precalculated x/y and cost values of the 
+            centroid and picks the returns the index to the cell that has the minimum cost"""
+        print 'picking between {} centroids'.format(len(self.centroidX))
+        if len(self.centroidX)>0:
             # Determine which centroid is the closest 
-            index = np.argmax(utility)
+            index = np.argmax(self.cost)
             
             # Mark the centroid to navigate to as red
             self.markerArray.markers[index].color.r = 1.0
             self.markerArray.markers[index].color.b = 0.0
             
             # Remove old markers
-            for ii in range(len(utility), len(self.markerArray.markers)):
+            for ii in range(len(self.cost), len(self.markerArray.markers)):
                 self.markerArray.markers[ii].action = Marker.DELETE
             
             # Publish the markerArray 
             self.marker_pub.publish(self.markerArray)
             
             # Remove markers from array
-            for iii in range(len(utility), len(self.markerArray.markers)):
+            for iii in range(len(self.cost), len(self.markerArray.markers)):
                 self.markerArray.markers.pop(-1)
                 
                 
-            print 'Navigating to', centroidX[index], centroidY[index]
+            print '\tNavigating to', self.centroidX[index], self.centroidY[index]
             
-            return centroidX[index], centroidY[index]
+            return index
         else:
-            print 'No Valid centroids'
-            return None, None
+            print '\tNo Valid centroids'
+            return None
+        
         
     def makeMarker(self, centroidX, centroidY, ID, action = Marker.ADD):
         """ Creates a marker on RVIZ for the centroid of the frontier"""
@@ -579,10 +602,7 @@ class Frontier_Based_Exploration():
         return origin
     
     def newPose(self, x, y, rot_z=0.1,rot_w=0.1):
-        """Takes in the new waypoint and sets the new goal position"""
-        # Convert the grid coordinates to XY coordinates
-#        gridX, gridY = self.grid2xy(centroidX, centroidY)
-        
+        """Takes in the new waypoint and sets the new goal position"""        
         new = PoseStamped()
         new.header.seq=1
         new.header.stamp.secs = rospy.get_rostime().to_sec()
@@ -604,24 +624,58 @@ class Frontier_Based_Exploration():
         # Publish the new position
         self.cmd_pose.publish(new)
     
-    def spin180(self, first_half):
-        """ Spins the robot 180 degrees"""
-        pos = Position()
+#    def spin180(self, first_half):
+#        """ Spins the robot 180 degrees"""
+#        pos = Position()
+#        
+#        if first_half:
+#            self.robotState = RobotState.spin_0_180
+#        else:
+#            self.robotState = RobotState.spin_180_360
+#        
+#        # get current position and add 180 degrees to it
+#        pos = self.get_current_position()
+#        x,y,z,w = tf.transformations.quaternion_from_euler(0,0,normalize_angle(pos.theta+np.pi))
+#        
+#        # Set the new pose
+#        self.newPose(pos.x, pos.y, rot_z=z,rot_w = w)
         
-        if first_half:
-            self.robotState = RobotState.spin_0_180
+    def angle_traveled(self):
+        """ Calculates the angle traveled between the current and previous 
+            angle.
+        """
+        
+        diff = self.cur_odom.theta-self.prev_odom.theta
+        # If there is a big jump, then it must have crossed the -180/180 
+        #  boundary.
+        if abs(diff)>np.pi:
+            diff -= 2*np.pi
+            diff *= -1
+            
+        self.angle_trav += diff
+        
+    def spin360(self):
+        """ Spins the robot 360 degrees w.r.t the odometer"""
+        if self.start_spin:
+            self.robotState = RobotState.spin
+            self.angle_trav = 0
+            self.start_spin = False
+            self.done_spinning = False
+            omega = .5 # Rad/sec
+            
+            
+        self.angle_traveled()
+        if (self.angle_trav < np.pi*2):
+            # Write a new twist message
+            self.cmd_vel.publish(Twist(Vector3(0,0,0),Vector3(0,0,omega)))
         else:
-            self.robotState = RobotState.spin_180_360
+            # turn off Twist
+            self.cmd_vel.publish(Twist())
+            self.done_spinning = True
         
-        # get current position and add 180 degrees to it
-        pos = self.get_current_position()
-        x,y,z,w = tf.transformations.quaternion_from_euler(0,0,normalize_angle(pos.theta+np.pi))
-        
-        # Set the new pose
-        self.newPose(pos.x, pos.y, rot_z=z,rot_w = w)
-        
-    def move2frontier(self,centroidX, centroidY):
-        self.newPose(centroidX, centroidY)
+    def move2frontier(self,X, Y):
+        """ Navigate to the centroid of the chosen frontier"""
+        self.newPose(X, Y)
         self.robotState = RobotState.move_base
                 
     def run(self):
@@ -630,38 +684,53 @@ class Frontier_Based_Exploration():
         while (rospy.Time.now().to_sec()-start) < 1:
             self.r.sleep()
             
-        print 'spinning', self.WPT_ID +1
-        self.spin180(True)
-        centroidX = 0
-        centroidY = 0
+        print 'Spinning'
+        self.spin360()
+        
         while not rospy.is_shutdown() and (rospy.Time.now().to_sec()-start) > 1:
             try:
                 self.updateMap()
-                
-                if  self.move_base_status.status not in [GoalStatus.ACTIVE, GoalStatus.PREEMPTING, GoalStatus.RECALLING, GoalStatus.PENDING]:                
-                    # print error message                    
-                    if self.move_base_status.status in [GoalStatus.ABORTED, GoalStatus.REJECTED, GoalStatus.SUCCEEDED]:
-                        if self.move_base_status.status in [GoalStatus.ABORTED, GoalStatus.REJECTED]:
-                            print 'Failed to reach state', self.WPT_ID        
-                    
-                        # Update the robot state
-                        if self.robotState == RobotState.spin_0_180:
-                            print 'spining', self.WPT_ID+1   
-                            self.spin180(False)
-                            
-                        elif self.robotState == RobotState.spin_180_360:
-                            print 'move to centroid', self.WPT_ID+1   
-                            frontiers = self.getFrontier()
-                            if len(frontiers) == 0:
-                                return
-                            centroidX, centroidY = self.pickBestCentroid(frontiers)
-                            self.move2frontier(centroidX, centroidY)
+                # If the robot is currently spinning, check if it completed a 
+                #   rotation and if it has, find the frontiers.
+                if self.robotState == RobotState.spin:
+                    if self.done_spinning:
+                        print 'Move to centroid', self.WPT_ID+1   
+                        frontiers = self.getFrontier()
+                        if len(frontiers) == 0:
+                            break
+                        index = self.pickBestCentroid(frontiers)
+                        if index == -1:
+                            print '\tNo more frontiers'
+                            break
+                        self.move2frontier(self.centroidX[index], self.centroidY[index])
+                    else:
+                        if self.new_cmd:
+                            self.start_spin=True
+                            self.new_cmd = False
+                        self.spin360()
                         
-                        elif self.robotState == RobotState.move_base:
-                            if self.move_base_status.status in [GoalStatus.ABORTED, GoalStatus.REJECTED]:
-                                self.unreachable_frontiers.append([centroidX, centroidY])
-                            print 'spining', self.WPT_ID +1   
-                            self.spin180(True)
+                # If the robot is trying to navigate to the centroid of a 
+                #   frontier, check if the robot is in an end state
+                if self.robotState == RobotState.move_base:
+                    # If it could not reach the centroid, then try the next 
+                    #   best one
+                    if self.move_base_status.status in [GoalStatus.ABORTED, GoalStatus.REJECTED]:
+                        print '\tFailed to reach frontier. Trying next one.'
+                        self.unreachable_frontiers.append([self.centroidX[index], self.centroidY[index]])
+                        
+                        # Try next best frontier
+                        self.centroidX.pop(index)
+                        self.centroidY.pop(index)
+                        self.cost.pop(index)
+                        index = self.bestCentroid()
+                        if index == -1:
+                            print '\tNo more frontiers'
+                            break
+                        self.move2frontier(self.centroidX[index], self.centroidY[index])
+                            
+                    if self.move_base_status.status == GoalStatus.SUCCEEDED:
+                        print 'Spining'   
+                        self.spin360()
                 self.r.sleep()
                         
             except KeyboardInterrupt:
@@ -680,8 +749,6 @@ class Frontier_Based_Exploration():
         """ Initialize """
         rospy.init_node('Frontier_exploration')
         
-#        self.got_origin = False
-        self.new_msg = False
         self.listener = tf.TransformListener()        
         
         # Get the parameters for the grid
@@ -704,12 +771,19 @@ class Frontier_Based_Exploration():
         self.frontierCentroid = Position()
         self.markerArray = MarkerArray()
 #        self.pos = PoseStamped()
+        self.cur_odom = Position()
+        self.prev_odom = Position()
         
         self.gmapping_map = OccupancyGrid()
         self.current_map = OccupancyGrid()
         self.meta = MapMetaData()
         self.scan = LaserScan()
         self.new_pose = PoseStamped()
+        
+        # Rotation Booleans
+        self.start_spin = True
+        self.done_spinning = True
+        self.new_cmd = False
         
         # Initialize the map as unknown (-1)
         self.current_map.data = [-1]*self.ogrid_sizeX*self.ogrid_sizeY # row-major order
@@ -726,9 +800,10 @@ class Frontier_Based_Exploration():
         self.pub_map = rospy.Publisher('/frontier_map', OccupancyGrid, queue_size=100)
         self.marker_pub = rospy.Publisher('/viz_marker_array', MarkerArray, queue_size=100)
         self.cmd_pose = rospy.Publisher('/move_base_simple/goal', PoseStamped, queue_size=100)
+        self.cmd_vel = rospy.Publisher('cmd_vel_mux/input/teleop', Twist, queue_size=100)
         
         # subscribers for odometry and position (/move_base/feedback) messages
-#        self.odom_sub = rospy.Subscriber("/odom", Odometry, self.odom_callback)
+        self.odom_sub = rospy.Subscriber("/odom", Odometry, self.odom_callback)
 #        self.feedback_sub = rospy.Subscriber("/move_base/status", PoseStamped, self.feedback_callback)
         self.scan_sub = rospy.Subscriber("/scan", LaserScan, self.scan_callback)
         self.sub_map = rospy.Subscriber('/map', OccupancyGrid, self.costmap_callback)
