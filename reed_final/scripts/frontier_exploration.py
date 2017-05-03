@@ -755,8 +755,10 @@ class Frontier_Based_Exploration():
                             self.markerArray.markers[marker_index].color.g = 0.0
                             self.markerArray.markers[marker_index].color.b = 0.0
                             
+                            self.marker_pub.publish(self.markerArray)
+                            
 #                            print '\tOld: ',
-                            self.updateBestCentoid()
+                            self.frontier_index = self.updateBestCentoid()
                             
 #                            print len(self.current_failed)
 #                            for i in range(len(self.current_failed)):

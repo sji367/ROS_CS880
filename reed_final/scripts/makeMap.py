@@ -10,6 +10,7 @@ import numpy as np
 import tf
 from nav_msgs.msg import OccupancyGrid, MapMetaData
 from sensor_msgs.msg import LaserScan
+from geometry_msgs.msg import Twist
 
 class Position:
     """ Helper class that describes the positon of the turtlebot:
@@ -18,6 +19,7 @@ class Position:
     x = 0.0
     y = 0.0
     theta = 0.0
+    time = 0.0
     
 class RobotState():
     spin = 0
@@ -33,6 +35,12 @@ def normalize_angle(angle):
     return angle
     
 class MakeMap():
+    def vel_callback(self, vel_msg):
+        """ """
+        self.velocity.linear.x = vel_msg.linear.x
+        self.velocity.linear.y = vel_msg.linear.y
+        self.velocity.angular.z = vel_msg.angular.z
+        
     def scan_callback(self, scan_msg):
         """ Callback for the /scan messages."""
         self.scan.ranges = scan_msg.ranges
@@ -107,12 +115,11 @@ class MakeMap():
             
         self.current_map.data[index] = int(prob_occupancy*100)
     
-    def updateNeighbors(self, scanX, scanY, camera_pos):
+    def updateNeighbors(self, scanX, scanY):
         """ Update the free occupancy grid cells between the robot and the   
             obstacle found using the laser scan.
         """
-        camX, camY = self.xy2grid(camera_pos.x, camera_pos.y)
-        robotX, robotY = self.xy2grid(self.position.x, self.position.y)
+        camX, camY = self.xy2grid(self.camera_pos.x, self.camera_pos.y)
         prev_hit = [[scanX, scanY]]
         dx = scanX - camX
         dy = scanY - camY
@@ -131,12 +138,11 @@ class MakeMap():
                 self.setOccupancy(row_major_index, self.current_map.data[row_major_index], True)
     
     def updateMap(self):
-        """ This function updates the occupancy grid cells from the """
-        camera_pos = Position()     
-        camera_pos = self.getCameraPositon()
+        """ This function updates the occupancy grid cells from the """    
+        self.getCameraPositon()
         
         # The Current position of the robot should be free
-        camGridX,camGridY=self.xy2grid(camera_pos.x, camera_pos.y)
+        camGridX,camGridY=self.xy2grid(self.camera_pos.x, self.camera_pos.y)
         cam_index= self.xy2mapIndex(camGridX,camGridY)
         self.setOccupancy(cam_index, self.current_map.data[cam_index], True)
         
@@ -144,7 +150,7 @@ class MakeMap():
 #        print self.position.x, self.position.y, self.position.theta, self.xy2grid(self.position.x, self.position.y)
         
         laser_data=self.scan.ranges
-        start_angle = normalize_angle(self.scan.angle_min+camera_pos.theta)
+        start_angle = normalize_angle(self.scan.angle_min+self.camera_pos.theta)
         
 #        print '{} + {} = {}'.format(self.scan.angle_min, camera_pos.theta, start_angle)
         for i in range(len(laser_data)):
@@ -155,13 +161,13 @@ class MakeMap():
 #                print cur_angle, i
                 
                 # Determine the location of the obstacle found by the laser scan
-                scanX = laser_data[i]*np.cos(cur_angle)+camera_pos.x
-                scanY = laser_data[i]*np.sin(cur_angle)+camera_pos.y
+                scanX = laser_data[i]*np.cos(cur_angle)+self.camera_pos.x
+                scanY = laser_data[i]*np.sin(cur_angle)+self.camera_pos.y
                             
                 scanX_grid, scanY_grid = self.xy2grid(scanX, scanY)
                 
                 # Update the map between the obstacle and the robot
-                self.updateNeighbors(scanX_grid, scanY_grid, camera_pos)
+                self.updateNeighbors(scanX_grid, scanY_grid)
                     
                 # Update the map to include the obstacle
                 row_major_index = self.xy2mapIndex(scanX_grid, scanY_grid)
@@ -208,20 +214,44 @@ class MakeMap():
         
     def get_current_position(self):
         """ Callback to get the current position"""
+        self.setPrevPosition(self.position)
+        
+        # get the current position
         trans, rot = self.listener.lookupTransform('map', 'base_link', rospy.Time(0))
-        self.position.x= trans[0]
-        self.position.y = trans[1]
+        self.position.time = rospy.get_rostime().to_sec()
         self.position.theta= normalize_angle(self.rotation_distance(rot[2],rot[3]))
         
-    def getCameraPositon(self):
-        position = Position()
-        trans, rot = self.listener.lookupTransform('map', 'camera_depth_frame', rospy.Time(0))
-        position.x= trans[0]
-        position.y = trans[1]
-        position.theta= normalize_angle(self.rotation_distance(rot[2],rot[3]))
+        if abs(trans[0]-self.prev_pos.x) < 0.5 or abs(trans[1]-self.prev_pos.y) < 0.5: 
+            self.position.x= trans[0]
+            self.position.y = trans[1]
+        else:
+            dt = self.camera_pos.time-self.prev_camera_pos.time
+            self.position.x = self.velocity.linear.x * dt +self.prev_pos.x
+            self.position.y = self.velocity.linear.y * dt +self.prev_pos.y
+            
         
-        return position
-    
+    def getCameraPositon(self):
+        self.setPrevPosition(self.camera_pos)
+        
+        # Set Current position
+        trans, rot = self.listener.lookupTransform('map', 'camera_depth_frame', rospy.Time(0))
+        self.camera_pos.time = rospy.get_rostime().to_sec()
+        self.camera_pos.theta= normalize_angle(self.rotation_distance(rot[2],rot[3]))
+        
+        dt = self.camera_pos.time-self.prev_camera_pos.time
+        if abs(trans[0]-self.prev_camera_pos.x) < 0.5 and abs(trans[1]-self.prev_camera_pos.y) < 0.5 or dt>3:
+            self.camera_pos.x= trans[0]
+            self.camera_pos.y = trans[1]
+        else:
+            self.camera_pos.x = self.velocity.linear.x * dt +self.prev_camera_pos.x
+            self.camera_pos.y = self.velocity.linear.y * dt +self.prev_camera_pos.y
+        
+            
+    def setPrevPosition(self, position):
+        self.prev_pos.x = position.x
+        self.prev_pos.y = position.y
+        self.prev_pos.theta = position.theta
+        
     def __init__(self):
         """ Initialize """
         rospy.init_node('Make_Map')
@@ -243,12 +273,17 @@ class MakeMap():
         
         # Initialize some varables to store the objects to be published/subscribed
         self.position = Position()
-        self.cur_odom = Position()
-        self.prev_odom = Position()
+        self.prev_pos = Position()
+        self.camera_pos= Position()
+        self.prev_camera_pos = Position()
+        
+        # map
+        self.velocity = Twist()
         
         self.current_map = OccupancyGrid()
         self.meta = MapMetaData()
         self.scan = LaserScan()
+        self.prev_scan = LaserScan()
         
         # Rotation Booleans
         self.start_spin = True
@@ -266,13 +301,19 @@ class MakeMap():
         self.pub_map = rospy.Publisher('/frontier_map', OccupancyGrid, queue_size=100)
         
         # subscribers for odometry and position (/move_base/feedback) messages
+        self.cmd_vel = rospy.Subscriber('/cmd_vel_mux/input/navi', Twist, self.vel_callback)
         self.scan_sub = rospy.Subscriber("/scan", LaserScan, self.scan_callback)
         self.sub_map = rospy.Subscriber('/map', OccupancyGrid, self.costmap_callback)
         
         self.listener.waitForTransform('/map', '/base_link', rospy.Time(0), rospy.Duration(1))
         
+        # Get First position and then set it to previous
+#        self.get_current_position()
+        self.getCameraPositon()
+        
+        
         while (not rospy.is_shutdown()):
-            self.get_current_position()
+#            self.get_current_position()
             self.updateMap()
 #            return
         
