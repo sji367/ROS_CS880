@@ -478,7 +478,10 @@ class Frontier_Based_Exploration():
     
     def pickBestCentroid(self, frontiers):
         """ Takes in all frontiers (as a 3D array) and choses the best frontier"""
-        self.centroid = []
+#        self.centroid = []
+        self.centroidX = []
+        self.centroidY = []
+        self.centroidIndex = []
         self.cost = []
         
 #        print frontiers
@@ -491,28 +494,32 @@ class Frontier_Based_Exploration():
             if self.gmapping_map.data[index]< 30:# and self.gmapping_map.data[index]>=0:
                 if [x_c, y_c] not in self.unreachable_frontiers:
                     self.makeMarker(x_c, y_c, centroid_index)
-                    self.centroid.append([x_c, y_c, cost_c, centroid_index])
+                    self.centroidX.append(x_c)
+                    self.centroidY.append(y_c)
                     self.cost.append(cost_c)
+                    self.centroidIndex.append(centroid_index)
                     centroid_index += 1
                 
         return self.bestCentroid()
             
     def updateBestCentoid(self):
         """ """
-        for i in range(len(self.centroid)):
+        for i in range(len(self.centroidX)):
             # Update the cost
-            self.cost = self.calcCost_dist(self.centroid[i][0], self.centroid[i][1])
+            self.cost[i] = (self.calcCost_dist(self.centroidX[i], self.centroidY[i]))
             
         return self.bestCentroid()
         
     def bestCentroid(self):
         """ This function takes the precalculated x/y and cost values of the 
             centroid and picks the returns the index to the cell that has the minimum cost"""
-        print 'picking between {} centroids'.format(len(self.centroid))
-        if len(self.cost)>0:
+        print 'picking between {} centroids'.format(len(self.centroidX))
+        if len(self.centroidX)>0:
             # Determine which centroid is the closest 
             index = np.argmin(self.cost)
-            marker_index = self.centroid[index][3]
+#            print index, len(self.centroidIndex[index])
+            marker_index = self.centroidIndex[index]
+            print '\tNew: ',marker_index
             
             # Mark the centroid to navigate to as green
             self.markerArray.markers[marker_index].color.r = 0.0
@@ -522,7 +529,7 @@ class Frontier_Based_Exploration():
             # Publish the markerArray 
             self.marker_pub.publish(self.markerArray)
                 
-            print 'Navigating to', self.centroid[index][0], self.centroid[index][1], index
+            print 'Navigating to', self.centroidX[index], self.centroidY[index], index
             
             return index
         else:
@@ -710,7 +717,6 @@ class Frontier_Based_Exploration():
                         self.robotState = RobotState.move_base
                         self.current_failed = []               
                         self.WPT_ID +=1
-                        print 'Move to centroid', self.WPT_ID
                         frontiers = self.getFrontier()
                         if len(frontiers) == 0:
                             self.removeAllMarkers()
@@ -720,7 +726,7 @@ class Frontier_Based_Exploration():
                             self.removeAllMarkers()
                             print '\tNo more frontiers'
                             return
-                        self.move2frontier(self.centroid[self.frontier_index][0], self.centroid[self.frontier_index][1])
+                        self.move2frontier(self.centroidX[self.frontier_index], self.centroidY[self.frontier_index])
                     else:
                         if self.new_cmd:
                             self.start_spin=True
@@ -734,18 +740,23 @@ class Frontier_Based_Exploration():
                     #   best one
                     if len(self.move_base_status) > self.WPT_ID:
                         if self.move_base_status[self.WPT_ID] in [GoalStatus.ABORTED, GoalStatus.REJECTED]:
-                            print '\tFailed to reach frontier. Trying next one.', self.WPT_ID+1
-                            self.unreachable_frontiers.append([self.centroid[self.frontier_index][0], self.centroid[self.frontier_index][1]])
+                            print '\tFailed to reach frontier. Trying next one.'
+                            self.unreachable_frontiers.append([self.centroidX[self.frontier_index], self.centroidY[self.frontier_index]])
                             self.WPT_ID +=1
                             # Try next best frontier
-                            marker = self.centroid.pop(self.frontier_index)
-#                            self.centroidY.pop(self.frontier_index)
-#                            self.cost.pop(self.frontier_index)
-                            marker_index = marker[3]
+                            self.centroidX.pop(self.frontier_index)
+                            self.centroidY.pop(self.frontier_index)
+                            self.cost.pop(self.frontier_index)
+                            marker_index = self.centroidIndex[self.frontier_index]
+                            self.centroidIndex.pop(self.frontier_index)
+                            print '\tOld: ', marker_index, self.frontier_index, len(self.centroidIndex)
                             
                             self.markerArray.markers[marker_index].color.r = 1.0
                             self.markerArray.markers[marker_index].color.g = 0.0
                             self.markerArray.markers[marker_index].color.b = 0.0
+                            
+#                            print '\tOld: ',
+                            self.updateBestCentoid()
                             
 #                            print len(self.current_failed)
 #                            for i in range(len(self.current_failed)):
@@ -765,11 +776,11 @@ class Frontier_Based_Exploration():
 #                            
 #                            self.c+ray.markers[marker_index].color.b = 0.0
                                 
-                            if self.frontier_index == -1:
+                            if self.frontier_index == -1 or len(self.centroidX)==0:
                                 self.removeAllMarkers()
                                 print '\tNo more frontiers'
                                 return
-                            self.move2frontier(self.centroid[self.frontier_index][0], self.centroid[self.frontier_index][1])
+                            self.move2frontier(self.centroidX[self.frontier_index], self.centroidY[self.frontier_index])
                                 
                         elif self.move_base_status[self.WPT_ID] == GoalStatus.SUCCEEDED:
                             self.start_spin = True
