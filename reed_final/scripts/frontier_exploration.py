@@ -263,20 +263,20 @@ class Frontier_Based_Exploration():
 #            top = True
             # Check the cell above to see if its connected to a known 
             #   cell
-            if self.gmapping_map.data[index-self.ogrid_sizeX] <50 and self.gmapping_map.data[index-self.ogrid_sizeX]>=0:
+            if self.gmapping_map.data[index-self.ogrid_sizeX] ==-1:#<50 and self.gmapping_map.data[index-self.ogrid_sizeX]>=0:
                 connected = True
             
         if (index<(self.ogrid_sizeX*self.ogrid_sizeY-self.ogrid_sizeX)): # check this math
 #            bottom =True
             # Check the cell below to see if its connected to a known 
             #   cell
-            if self.gmapping_map.data[index+self.ogrid_sizeX] <50 and self.gmapping_map.data[index+self.ogrid_sizeX]>=0:
+            if self.gmapping_map.data[index+self.ogrid_sizeX] ==-1:#<50 and self.gmapping_map.data[index+self.ogrid_sizeX]>=0:
                 connected = True
             
         if (np.mod(index,self.ogrid_sizeX) != 0):
             # Check the cell to the left to see if its connected to a  
             #   known cell
-            if self.gmapping_map.data[index-1] <50 and self.gmapping_map.data[index-1]>=0:
+            if self.gmapping_map.data[index-1] ==-1:#<50 and self.gmapping_map.data[index-1]>=0:
                 connected = True
 #            # Check top left
 #            if top and self.gmapping_map.data[index-self.ogrid_sizeX-1] <50 and self.gmapping_map.data[index-self.ogrid_sizeX-1]>=0:
@@ -288,7 +288,7 @@ class Frontier_Based_Exploration():
         if (np.mod(index,self.ogrid_sizeX) != self.ogrid_sizeX-1):
             # Check the cell to the right to see if its connected to a 
             #   known cell
-            if self.gmapping_map.data[index+1] <50 and self.gmapping_map.data[index+1]>=0:
+            if self.gmapping_map.data[index+1] ==-1:#<50 and self.gmapping_map.data[index+1]>=0:
                 connected = True
 #            # Check top right
 #            if top and self.gmapping_map.data[index-self.ogrid_sizeX+1] <50 and self.gmapping_map.data[index-self.ogrid_sizeX+1]>=0:
@@ -308,7 +308,7 @@ class Frontier_Based_Exploration():
         for i in range(len(self.gmapping_map.data)):
 #            print i, self.mapIndex2xy(i), self.gmapping_map.data[i]
             # Store the frontiers as a list
-            if self.gmapping_map.data[i]==-1:
+            if self.gmapping_map.data[i]<30 and self.gmapping_map.data[i]>=0:
                 if self.onFrontier(i):
 #                    x,y = self.mapIndex2xy(i)
 #                    print i,x,y
