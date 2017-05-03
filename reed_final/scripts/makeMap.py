@@ -37,6 +37,7 @@ class MakeMap():
         """ Callback for the /scan messages."""
         self.scan.ranges = scan_msg.ranges
         self.scan.angle_increment = scan_msg.angle_increment
+        self.scan.angle_max = scan_msg.angle_max
         self.scan.angle_min = scan_msg.angle_min
     
     def costmap_callback(self, map_msg):
@@ -112,23 +113,21 @@ class MakeMap():
         """
         camX, camY = self.xy2grid(camera_pos.x, camera_pos.y)
         robotX, robotY = self.xy2grid(self.position.x, self.position.y)
-        
-        print camera_pos.x, camera_pos.y, camera_pos.theta, camX, camY
-        print self.position.x, self.position.y, self.position.theta, robotX, robotY
-        print 
+        prev_hit = [[scanX, scanY]]
         dx = scanX - camX
         dy = scanY - camY
-        prevX = 0
-        prevY = 0
+#        prevX = 0
+#        prevY = 0
         # Need to check that the path does not pass an object
         JumpCells=2*max(abs(dx),abs(dy))-1
         for K in range(1,JumpCells):
             # intermediate positions
-            YPOS=int(round(K*1.0*dy/JumpCells))
-            XPOS=int(round(K*1.0*dx/JumpCells))
-            if (prevX != XPOS) or (prevY != YPOS):
+            XPOS=int(round(K*1.0*dx/JumpCells))+camX
+            YPOS=int(round(K*1.0*dy/JumpCells))+camY
+            if [XPOS, YPOS] not in prev_hit:#(prevX != XPOS) or (prevY != YPOS):
+                prev_hit.append([XPOS, YPOS])
                 # update the map
-                row_major_index = self.xy2mapIndex(camX+XPOS, camY+YPOS)
+                row_major_index = self.xy2mapIndex(XPOS, YPOS)
                 self.setOccupancy(row_major_index, self.current_map.data[row_major_index], True)
     
     def updateMap(self):
@@ -141,19 +140,19 @@ class MakeMap():
         cam_index= self.xy2mapIndex(camGridX,camGridY)
         self.setOccupancy(cam_index, self.current_map.data[cam_index], True)
         
-        print camera_pos.x, camera_pos.y, camera_pos.theta, self.xy2grid(camera_pos.x, camera_pos.y)
-        print self.position.x, self.position.y, self.position.theta, self.xy2grid(self.position.x, self.position.y)
-        print 
+#        print camera_pos.x, camera_pos.y, camera_pos.theta, self.xy2grid(camera_pos.x, camera_pos.y)
+#        print self.position.x, self.position.y, self.position.theta, self.xy2grid(self.position.x, self.position.y)
         
         laser_data=self.scan.ranges
-        cur_angle = normalize_angle(self.scan.angle_min+camera_pos.theta)
-#        print 'update',len(laser_data)
+        start_angle = normalize_angle(self.scan.angle_min+camera_pos.theta)
+        
+#        print '{} + {} = {}'.format(self.scan.angle_min, camera_pos.theta, start_angle)
         for i in range(len(laser_data)):
-            if not np.isnan(laser_data[i]):# and laser_data[i] < self.max_range and laser_data[i] > self.min_range:  
+            if not np.isnan(laser_data[i]) and laser_data[i] < self.max_range and laser_data[i] > self.min_range:  
                 # Update the current angle to reflect the angle of the laser 
                 #  scan.
-                cur_angle = normalize_angle(self.scan.angle_increment + cur_angle)
-                print cur_angle
+                cur_angle = normalize_angle(self.scan.angle_increment*i + start_angle)
+#                print cur_angle, i
                 
                 # Determine the location of the obstacle found by the laser scan
                 scanX = laser_data[i]*np.cos(cur_angle)+camera_pos.x
@@ -162,7 +161,7 @@ class MakeMap():
                 scanX_grid, scanY_grid = self.xy2grid(scanX, scanY)
                 
                 # Update the map between the obstacle and the robot
-#                self.updateNeighbors(scanX_grid, scanY_grid, camera_pos)
+                self.updateNeighbors(scanX_grid, scanY_grid, camera_pos)
                     
                 # Update the map to include the obstacle
                 row_major_index = self.xy2mapIndex(scanX_grid, scanY_grid)
@@ -275,7 +274,7 @@ class MakeMap():
         while (not rospy.is_shutdown()):
             self.get_current_position()
             self.updateMap()
-            return
+#            return
         
         return
 if __name__ == "__main__":
