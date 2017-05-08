@@ -12,7 +12,7 @@ import tf
 from nav_msgs.msg import OccupancyGrid, MapMetaData, Odometry
 from visualization_msgs.msg import Marker, MarkerArray
 from geometry_msgs.msg import PoseStamped, Twist, Vector3
-from sensor_msgs.msg import LaserScan
+#from sensor_msgs.msg import LaserScan
 from actionlib_msgs.msg import GoalStatus, GoalStatusArray
 
 class Position:
@@ -25,9 +25,7 @@ class Position:
     
 class RobotState():
     spin = 0
-    spin_0_180 = 1
-    spin_180_360 = 2
-    move_base = 3
+    move_base = 2
     
 def normalize_angle(angle):
     """REDUCE ANGLES TO -pi pi"""
@@ -57,9 +55,6 @@ class Frontier_Based_Exploration():
         
     def costmap_callback(self, map_msg):
         """ Callback to handle Map messages. """
-#        print map_msg.info
-#        self.new_msg = True 
-        
         self.meta.resolution= map_msg.info.resolution
         self.meta.height = map_msg.info.height
         self.meta.width = map_msg.info.width
@@ -73,12 +68,12 @@ class Frontier_Based_Exploration():
         self.origin.x = map_msg.info.origin.position.x
         self.origin.y = map_msg.info.origin.position.y
     
-    def scan_callback(self, scan_msg):
-        """ Callback for the /scan messages."""
-        self.scan.ranges = scan_msg.ranges
-        self.scan.angle_increment = scan_msg.angle_increment
-        self.scan.angle_min = scan_msg.angle_min
-        
+#    def scan_callback(self, scan_msg):
+#        """ Callback for the /scan messages."""
+#        self.scan.ranges = scan_msg.ranges
+#        self.scan.angle_increment = scan_msg.angle_increment
+#        self.scan.angle_min = scan_msg.angle_min
+#        
     def status_callback(self, status_msg):
         """ """
         if  len(status_msg.status_list) >0:
@@ -89,7 +84,6 @@ class Frontier_Based_Exploration():
                     self.move_base_status[ID] = status_msg.status_list[i].status
                 else:
                     self.move_base_status.append(status_msg.status_list[i].status)
-#            print self.move_base_status.status
                     
     def odom_callback(self, odom_msg):
         """ callback to handle odometry messages"""        
@@ -133,7 +127,6 @@ class Frontier_Based_Exploration():
         
     def distanceFomula(self, x1,y1, x2,y2):
          dist =  np.sqrt(np.square(x2 - x1) + np.square(y2-y1))
-#         print dist
          return dist
          
     def calcCost(self, centroidX, centroidY, frontierLength):
@@ -150,104 +143,103 @@ class Frontier_Based_Exploration():
         """ Calculate the cost of the frontier's centroid using just the
             distance to the centroid. 
         """
-#        print X,Y, self.position.x, self.position.y
         dist = self.distanceFomula(X, Y, self.position.x, self.position.y)
         return dist
         
-    def setOccupancy(self, index, prior, Free):
-        """ This function defines the occupancy of the cells."""
-        # If there is no previous data, then use a prior of 0.5 (Beta distribution)
-        if prior == -1:
-            prior = 0.5
-        # convert to probability (currently in range from 0 to 100)
-        else:
-            prior *= .01
-        
-        # Calculate eta
-        eta = 1/(self.p_measurement_given_occupied*prior + self.p_measurement_given_notOccupied*(1-prior))
-
-        if Free:
-            prob_occupancy = eta*self.p_measurement_given_notOccupied*(prior)
-        else:
-            prob_occupancy = eta*self.p_measurement_given_occupied*prior
-#            print prob_occupancy, index
-            
-        self.current_map.data[index] = int(prob_occupancy*100)
-    
-    def updateNeighbors(self, scanX, scanY, camera_pos):
-        """ Update the free occupancy grid cells between the robot and the   
-            obstacle found using the laser scan.
-        """
-        camX, camY = self.xy2grid(camera_pos.x, camera_pos.y)
-        robotX, robotY = self.xy2grid(self.position.x, self.position.y)
-        
-        dx = scanX - camX
-        dy = scanY - camY
-        prevX = 0
-        prevY = 0
-        # Need to check that the path does not pass an object
-        JumpCells=2*max(abs(dx),abs(dy))-1
-        for K in range(1,JumpCells):
-            # intermediate positions
-            YPOS=int(round(K*1.0*dy/JumpCells))
-            XPOS=int(round(K*1.0*dx/JumpCells))
-            if (prevX != XPOS) or (prevY != YPOS):
-                # update the map
-                row_major_index = self.xy2mapIndex(camX+XPOS, camY+YPOS)
-                self.setOccupancy(row_major_index, self.current_map.data[row_major_index], True)
-    
-    def updateMap(self):
-        """ This function updates the occupancy grid cells from the """
-        camera_pos = Position()     
-        camera_pos = self.getCameraPositon()
-        
-        # The Current position of the robot should be free
-        camGridX,camGridY=self.xy2grid(camera_pos.x, camera_pos.y)
-        cam_index= self.xy2mapIndex(camGridX,camGridY)
-        self.setOccupancy(cam_index, self.current_map.data[cam_index], True)
-        
-        laser_data=self.scan.ranges
-        cur_angle = normalize_angle(self.scan.angle_min+camera_pos.theta)
-#        print 'update',len(laser_data)
-        for i in range(len(laser_data)):
-            if not np.isnan(laser_data[i]) and laser_data[i] < self.max_range and laser_data[i] > self.min_range:            
-                # Update the current angle to reflect the angle of the laser 
-                #  scan.
-                cur_angle = normalize_angle(self.scan.angle_increment + cur_angle)
-                
-                # Determine the location of the obstacle found by the laser scan
-                scanX = laser_data[i]*np.cos(cur_angle)+camera_pos.x
-                scanY = laser_data[i]*np.sin(cur_angle)+camera_pos.y
-                            
-                scanX_grid, scanY_grid = self.xy2grid(scanX, scanY)
-                
-                # Update the map between the obstacle and the robot
-                self.updateNeighbors(scanX_grid, scanY_grid, camera_pos)
-                    
-                # Update the map to include the obstacle
-                row_major_index = self.xy2mapIndex(scanX_grid, scanY_grid)
-#                print row_major_index
-                self.setOccupancy(row_major_index, self.current_map.data[row_major_index], False)           
-        self.publishNewMap()
-        
-    def publishNewMap(self):
-        """ This function publishes an occupancy grid to the ROS topic 
-            /frontier_map."""
-        self.current_map.header.frame_id = 'map'
-#        originX = self.origin.x*self.grid_size
-#        originY = self.origin.y*self.grid_size
-#        cur_pos= Position()
-##        cur_pos= self.get_current_position()
-##        print cur_pos.x, cur_pos.y
-##        print cur_pos.x-originX,  cur_pos.y-originY
-        dif_in_middleX = self.origin.x*self.grid_size-self.meta.width*self.meta.resolution
-        dif_in_middleY = self.origin.y*self.grid_size-self.meta.height*self.meta.resolution
-#        print dif_in_middleX, dif_in_middleY
-        self.current_map.info.origin.position.x = -dif_in_middleX
-        self.current_map.info.origin.position.y = -dif_in_middleY
-        self.current_map.info.origin.orientation.w = 1
-#        print self.meta.origin.position.x, self.meta.origin.position.y
-        self.pub_map.publish(self.current_map)
+#    def setOccupancy(self, index, prior, Free):
+#        """ This function defines the occupancy of the cells."""
+#        # If there is no previous data, then use a prior of 0.5 (Beta distribution)
+#        if prior == -1:
+#            prior = 0.5
+#        # convert to probability (currently in range from 0 to 100)
+#        else:
+#            prior *= .01
+#        
+#        # Calculate eta
+#        eta = 1/(self.p_measurement_given_occupied*prior + self.p_measurement_given_notOccupied*(1-prior))
+#
+#        if Free:
+#            prob_occupancy = eta*self.p_measurement_given_notOccupied*(prior)
+#        else:
+#            prob_occupancy = eta*self.p_measurement_given_occupied*prior
+##            print prob_occupancy, index
+#            
+#        self.current_map.data[index] = int(prob_occupancy*100)
+#    
+#    def updateNeighbors(self, scanX, scanY, camera_pos):
+#        """ Update the free occupancy grid cells between the robot and the   
+#            obstacle found using the laser scan.
+#        """
+#        camX, camY = self.xy2grid(camera_pos.x, camera_pos.y)
+#        robotX, robotY = self.xy2grid(self.position.x, self.position.y)
+#        
+#        dx = scanX - camX
+#        dy = scanY - camY
+#        prevX = 0
+#        prevY = 0
+#        # Need to check that the path does not pass an object
+#        JumpCells=2*max(abs(dx),abs(dy))-1
+#        for K in range(1,JumpCells):
+#            # intermediate positions
+#            YPOS=int(round(K*1.0*dy/JumpCells))
+#            XPOS=int(round(K*1.0*dx/JumpCells))
+#            if (prevX != XPOS) or (prevY != YPOS):
+#                # update the map
+#                row_major_index = self.xy2mapIndex(camX+XPOS, camY+YPOS)
+#                self.setOccupancy(row_major_index, self.current_map.data[row_major_index], True)
+#    
+#    def updateMap(self):
+#        """ This function updates the occupancy grid cells from the """
+#        camera_pos = Position()     
+#        camera_pos = self.getCameraPositon()
+#        
+#        # The Current position of the robot should be free
+#        camGridX,camGridY=self.xy2grid(camera_pos.x, camera_pos.y)
+#        cam_index= self.xy2mapIndex(camGridX,camGridY)
+#        self.setOccupancy(cam_index, self.current_map.data[cam_index], True)
+#        
+#        laser_data=self.scan.ranges
+#        cur_angle = normalize_angle(self.scan.angle_min+camera_pos.theta)
+##        print 'update',len(laser_data)
+#        for i in range(len(laser_data)):
+#            if not np.isnan(laser_data[i]) and laser_data[i] < self.max_range and laser_data[i] > self.min_range:            
+#                # Update the current angle to reflect the angle of the laser 
+#                #  scan.
+#                cur_angle = normalize_angle(self.scan.angle_increment + cur_angle)
+#                
+#                # Determine the location of the obstacle found by the laser scan
+#                scanX = laser_data[i]*np.cos(cur_angle)+camera_pos.x
+#                scanY = laser_data[i]*np.sin(cur_angle)+camera_pos.y
+#                            
+#                scanX_grid, scanY_grid = self.xy2grid(scanX, scanY)
+#                
+#                # Update the map between the obstacle and the robot
+#                self.updateNeighbors(scanX_grid, scanY_grid, camera_pos)
+#                    
+#                # Update the map to include the obstacle
+#                row_major_index = self.xy2mapIndex(scanX_grid, scanY_grid)
+##                print row_major_index
+#                self.setOccupancy(row_major_index, self.current_map.data[row_major_index], False)           
+#        self.publishNewMap()
+#        
+#    def publishNewMap(self):
+#        """ This function publishes an occupancy grid to the ROS topic 
+#            /frontier_map."""
+#        self.current_map.header.frame_id = 'map'
+##        originX = self.origin.x*self.grid_size
+##        originY = self.origin.y*self.grid_size
+##        cur_pos= Position()
+###        cur_pos= self.get_current_position()
+###        print cur_pos.x, cur_pos.y
+###        print cur_pos.x-originX,  cur_pos.y-originY
+#        dif_in_middleX = self.origin.x*self.grid_size-self.meta.width*self.meta.resolution
+#        dif_in_middleY = self.origin.y*self.grid_size-self.meta.height*self.meta.resolution
+##        print dif_in_middleX, dif_in_middleY
+#        self.current_map.info.origin.position.x = -dif_in_middleX
+#        self.current_map.info.origin.position.y = -dif_in_middleY
+#        self.current_map.info.origin.orientation.w = 1
+##        print self.meta.origin.position.x, self.meta.origin.position.y
+#        self.pub_map.publish(self.current_map)
                 
         
     def onFrontier(self, index):
@@ -256,18 +248,18 @@ class Frontier_Based_Exploration():
             on the border of empty space and unknown space.
         """
         connected = False
-#        top = False
-#        bottom = False
+        top = False
+        bottom = False
         
         if (index>self.ogrid_sizeX):
-#            top = True
+            top = True
             # Check the cell above to see if its connected to a known 
             #   cell
             if self.gmapping_map.data[index-self.ogrid_sizeX] ==-1:#<50 and self.gmapping_map.data[index-self.ogrid_sizeX]>=0:
                 connected = True
             
         if (index<(self.ogrid_sizeX*self.ogrid_sizeY-self.ogrid_sizeX)): # check this math
-#            bottom =True
+            bottom =True
             # Check the cell below to see if its connected to a known 
             #   cell
             if self.gmapping_map.data[index+self.ogrid_sizeX] ==-1:#<50 and self.gmapping_map.data[index+self.ogrid_sizeX]>=0:
@@ -278,24 +270,24 @@ class Frontier_Based_Exploration():
             #   known cell
             if self.gmapping_map.data[index-1] ==-1:#<50 and self.gmapping_map.data[index-1]>=0:
                 connected = True
-#            # Check top left
-#            if top and self.gmapping_map.data[index-self.ogrid_sizeX-1] <50 and self.gmapping_map.data[index-self.ogrid_sizeX-1]>=0:
-#                connected = True
-#            # Check bottom left
-#            if bottom and self.gmapping_map.data[index+self.ogrid_sizeX-1] <50 and self.gmapping_map.data[index+self.ogrid_sizeX-1]>=0:
-#                connected = True
+            # Check top left
+            if top and self.gmapping_map.data[index-self.ogrid_sizeX-1] ==-1:
+                connected = True
+            # Check bottom left
+            if bottom and self.gmapping_map.data[index+self.ogrid_sizeX-1] ==-1:
+                connected = True
         
         if (np.mod(index,self.ogrid_sizeX) != self.ogrid_sizeX-1):
             # Check the cell to the right to see if its connected to a 
             #   known cell
             if self.gmapping_map.data[index+1] ==-1:#<50 and self.gmapping_map.data[index+1]>=0:
                 connected = True
-#            # Check top right
-#            if top and self.gmapping_map.data[index-self.ogrid_sizeX+1] <50 and self.gmapping_map.data[index-self.ogrid_sizeX+1]>=0:
-#                connected = True
-#            # Check bottom right
-#            if bottom and self.gmapping_map.data[index+self.ogrid_sizeX+1] <50 and self.gmapping_map.data[index+self.ogrid_sizeX+1]>=0:
-#                connected = True
+            # Check top right
+            if top and self.gmapping_map.data[index-self.ogrid_sizeX+1] ==-1:
+                connected = True
+            # Check bottom right
+            if bottom and self.gmapping_map.data[index+self.ogrid_sizeX+1] ==-1:
+                connected = True
         
 #        print index, self.mapIndex2xy(index), connected
                 
@@ -306,12 +298,9 @@ class Frontier_Based_Exploration():
             containing the indices of the cells on the frontier."""
         frontier = []
         for i in range(len(self.gmapping_map.data)):
-#            print i, self.mapIndex2xy(i), self.gmapping_map.data[i]
             # Store the frontiers as a list
             if self.gmapping_map.data[i]<30 and self.gmapping_map.data[i]>=0:
                 if self.onFrontier(i):
-#                    x,y = self.mapIndex2xy(i)
-#                    print i,x,y
                     frontier.append(i)
         return frontier
         
@@ -472,27 +461,25 @@ class Frontier_Based_Exploration():
         x_c, y_c = np.sum(points, axis=0)
         x_c /= int(np.round(1.0*num_Rows))
         y_c /= int(np.round(1.0*num_Rows))
-#        return x_c, y_c, self.calcCost(x_c, y_c, len(points))
+        
         x,y = self.grid2xy(x_c, y_c)
         return x_c, y_c, self.calcCost_dist(x,y)
     
     def pickBestCentroid(self, frontiers):
         """ Takes in all frontiers (as a 3D array) and choses the best frontier"""
-#        self.centroid = []
         self.centroidX = []
         self.centroidY = []
         self.centroidIndex = []
         self.cost = []
         
-#        print frontiers
         centroid_index = 0
         for i in range(len(frontiers)):
             x_c, y_c, cost_c = self.calc_centroid(frontiers[i])
             # Store centroid if it is known and 
             index = self.xy2mapIndex(x_c, y_c)
             x_c, y_c = self.grid2xy(x_c, y_c)
-            if self.gmapping_map.data[index]< 30:# and self.gmapping_map.data[index]>=0:
-                if [x_c, y_c] not in self.unreachable_frontiers:
+            if self.gmapping_map.data[index]< 50:# and self.gmapping_map.data[index]>=0:
+                if [x_c, y_c] not in self.unreachable_frontiers or [x_c, y_c] not in self.reached_centroids:
                     self.makeMarker(x_c, y_c, centroid_index)
                     self.centroidX.append(x_c)
                     self.centroidY.append(y_c)
@@ -513,13 +500,12 @@ class Frontier_Based_Exploration():
     def bestCentroid(self):
         """ This function takes the precalculated x/y and cost values of the 
             centroid and picks the returns the index to the cell that has the minimum cost"""
+            
         print 'picking between {} centroids'.format(len(self.centroidX))
         if len(self.centroidX)>0:
             # Determine which centroid is the closest 
             index = np.argmin(self.cost)
-#            print index, len(self.centroidIndex[index])
             marker_index = self.centroidIndex[index]
-            print '\tNew: ',marker_index
             
             # Mark the centroid to navigate to as green
             self.markerArray.markers[marker_index].color.r = 0.0
@@ -528,6 +514,7 @@ class Frontier_Based_Exploration():
             
             # Publish the markerArray 
             self.marker_pub.publish(self.markerArray)
+            print '\tlen: ', len(self.markerArray.markers)
                 
             print 'Navigating to', self.centroidX[index], self.centroidY[index], index
             
@@ -606,12 +593,7 @@ class Frontier_Based_Exploration():
         origin.x = -self.ogrid_sizeX/2/self.grid_size
         origin.y = -self.ogrid_sizeY/2/self.grid_size
         origin.theta = 0        
-        
-#        self.current_map.info.origin = self.meta.origin.position
-#        self.current_map.info.height = self.ogrid_sizeX
-#        self.current_map.info.width = self.ogrid_sizeY
-#        self.current_map.info.resolution = self.grid_size
-#        
+                
         return origin
     
     def newPose(self, x, y, rot_z=0.1,rot_w=0.1):
@@ -635,22 +617,6 @@ class Frontier_Based_Exploration():
         # Publish the new position
         self.cmd_pose.publish(new)
     
-#    def spin180(self, first_half):
-#        """ Spins the robot 180 degrees"""
-#        pos = Position()
-#        
-#        if first_half:
-#            self.robotState = RobotState.spin_0_180
-#        else:
-#            self.robotState = RobotState.spin_180_360
-#        
-#        # get current position and add 180 degrees to it
-#        pos = self.get_current_position()
-#        x,y,z,w = tf.transformations.quaternion_from_euler(0,0,normalize_angle(pos.theta+np.pi))
-#        
-#        # Set the new pose
-#        self.newPose(pos.x, pos.y, rot_z=z,rot_w = w)
-        
     def angle_traveled(self):
         """ Calculates the angle traveled between the current and previous 
             angle.
@@ -709,7 +675,6 @@ class Frontier_Based_Exploration():
         while not rospy.is_shutdown() and (rospy.Time.now().to_sec()-start) > 1:
             try:
                 self.get_current_position()
-#                self.updateMap()
                 # If the robot is currently spinning, check if it completed a 
                 #   rotation and if it has, find the frontiers.
                 if self.robotState == RobotState.spin:
@@ -757,26 +722,7 @@ class Frontier_Based_Exploration():
                             
                             self.marker_pub.publish(self.markerArray)
                             
-#                            print '\tOld: ',
                             self.frontier_index = self.updateBestCentoid()
-                            
-#                            print len(self.current_failed)
-#                            for i in range(len(self.current_failed)):
-#                                if self.current_failed[i] >= marker_index:
-#                                    marker_index += 1
-                                    
-#                            # Mark the centroid to navigate to as green
-#                            if len(self.current_failed)==0:
-#                                self.markerArray.markers[self.frontier_index].color.r = 1.0
-#                                self.markerArray.markers[self.frontier_index].color.g = 0.0
-#                                self.markerArray.markers[self.frontier_index].color.b = 0.0
-#                                
-#                            else:
-#                                self.markerArray.markers[self.current_failed[-1]].color.r = 1.0
-#                                self.markerArray.markers[self.current_failed[-1]].color.g = 0.0
-#                                self.markerArray.markers[self.current_failed[-1]].color.b = 0.0
-#                            
-#                            self.c+ray.markers[marker_index].color.b = 0.0
                                 
                             if self.frontier_index == -1 or len(self.centroidX)==0:
                                 self.removeAllMarkers()
@@ -785,6 +731,7 @@ class Frontier_Based_Exploration():
                             self.move2frontier(self.centroidX[self.frontier_index], self.centroidY[self.frontier_index])
                                 
                         elif self.move_base_status[self.WPT_ID] == GoalStatus.SUCCEEDED:
+                            self.reached_centroids.append([self.centroidX[self.frontier_index], self.centroidY[self.frontier_index]])
                             self.start_spin = True
                             print 'Spining'   
                             self.spin360()
@@ -809,7 +756,7 @@ class Frontier_Based_Exploration():
         # Get the parameters for the grid
         self.ogrid_sizeX = rospy.get_param('x_size', 250)
         self.ogrid_sizeY = rospy.get_param('y_size', 250)
-        self.grid_size = rospy.get_param('grid_size', 0.15) # in meters/cell (25cm)
+        self.grid_size = rospy.get_param('grid_size', 0.05) # in meters/cell (25cm)
         
         # Sensor Meta data
         self.min_range = rospy.get_param('max_range',0.4)
@@ -824,14 +771,13 @@ class Frontier_Based_Exploration():
         self.robotState = RobotState()
         self.frontierCentroid = Position()
         self.markerArray = MarkerArray()
-#        self.pos = PoseStamped()
         self.cur_odom = Position()
         self.prev_odom = Position()
         
         self.gmapping_map = OccupancyGrid()
         self.current_map = OccupancyGrid()
         self.meta = MapMetaData()
-        self.scan = LaserScan()
+#        self.scan = LaserScan()
         self.new_pose = PoseStamped()
         
         # Rotation Booleans
@@ -840,7 +786,7 @@ class Frontier_Based_Exploration():
         self.new_cmd = False
         
         # Initialize the map as unknown (-1)
-        self.current_map.data = [-1]*self.ogrid_sizeX*self.ogrid_sizeY # row-major order
+#        self.current_map.data = [-1]*self.ogrid_sizeX*self.ogrid_sizeY # row-major order
         self.unreachable_frontiers = []
         self.reached_centroids=[]
         self.WPT_ID = 0
@@ -852,7 +798,7 @@ class Frontier_Based_Exploration():
         self.r = rospy.Rate(50)
         
         # publishers for OccupancyGrid and move base messages
-        self.pub_map = rospy.Publisher('/frontier_map', OccupancyGrid, queue_size=100)
+#        self.pub_map = rospy.Publisher('/frontier_map', OccupancyGrid, queue_size=100)
         self.marker_pub = rospy.Publisher('/viz_marker_array', MarkerArray, queue_size=100)
         self.cmd_pose = rospy.Publisher('/move_base_simple/goal', PoseStamped, queue_size=100)
         self.cmd_vel = rospy.Publisher('cmd_vel_mux/input/teleop', Twist, queue_size=100)
@@ -860,13 +806,12 @@ class Frontier_Based_Exploration():
         # subscribers for odometry and position (/move_base/feedback) messages
         self.odom_sub = rospy.Subscriber("/odom", Odometry, self.odom_callback)
 #        self.feedback_sub = rospy.Subscriber("/move_base/status", PoseStamped, self.feedback_callback)
-        self.scan_sub = rospy.Subscriber("/scan", LaserScan, self.scan_callback)
-        self.sub_map = rospy.Subscriber('/map', OccupancyGrid, self.costmap_callback)
+#        self.scan_sub = rospy.Subscriber("/scan", LaserScan, self.scan_callback)
+        self.sub_map = rospy.Subscriber('/frontier_map', OccupancyGrid, self.costmap_callback)
         self.sub_status = rospy.Subscriber('/move_base/status', GoalStatusArray, self.status_callback)
         
         self.listener.waitForTransform('/map', '/base_link', rospy.Time(0), rospy.Duration(1))
         
-        #self.listener.waitForTransform('/scan', '/base_link', rospy.Time(0), rospy.Duration(1)) # Need to test this
         self.run()
         
         return

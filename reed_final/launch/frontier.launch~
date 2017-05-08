@@ -1,0 +1,8 @@
+<launch>
+  <node name="Frontier_exploration" pkg="reed_final" type="frontier_exploration.py" output="screen"/>
+
+  <node name="Make_Map" pkg="reed_final" type="makeMap.py" output="screen"/>
+
+  <node name="fmap_tf_broadcaster" pkg="reed_final" type="tf.py" output="screen"/>
+
+</launch>

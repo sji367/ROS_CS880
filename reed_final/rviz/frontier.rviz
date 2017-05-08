@@ -9,7 +9,6 @@ Panels:
         - /Global Map1/Planner1
         - /Local Map1/Planner1
         - /Local Map1/Trajectory Cloud1
-        - /MarkerArray1
       Splitter Ratio: 0.5
     Tree Height: 772
   - Class: rviz/Selection
@@ -266,7 +265,7 @@ Visualization Manager:
       Queue Size: 10
       Selectable: true
       Size (Pixels): 3
-      Size (m): 0.01
+      Size (m): 0.05
       Style: Squares
       Topic: /scan
       Unreliable: false
@@ -302,15 +301,6 @@ Visualization Manager:
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
-      Value: true
-    - Alpha: 0.7
-      Class: rviz/Map
-      Color Scheme: map
-      Draw Behind: false
-      Enabled: true
-      Name: Map
-      Topic: /map
-      Unreliable: false
       Value: true
     - Class: rviz/Group
       Displays:
@@ -480,6 +470,24 @@ Visualization Manager:
         {}
       Queue Size: 100
       Value: true
+    - Alpha: 0.7
+      Class: rviz/Map
+      Color Scheme: map
+      Draw Behind: false
+      Enabled: true
+      Name: My Map
+      Topic: /frontier_map
+      Unreliable: false
+      Value: true
+    - Alpha: 0.7
+      Class: rviz/Map
+      Color Scheme: map
+      Draw Behind: false
+      Enabled: true
+      Name: Map
+      Topic: /map
+      Unreliable: false
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -511,11 +519,11 @@ Visualization Manager:
         Value: false
       Name: Current View
       Near Clip Distance: 0.01
-      Scale: 96.6482
+      Scale: 70.5024
       Target Frame: <Fixed Frame>
       Value: TopDownOrtho (rviz)
-      X: -1.35336
-      Y: 2.04398
+      X: 0.834575
+      Y: 0.443151
     Saved: ~
 Window Geometry:
   Displays:
@@ -534,4 +542,4 @@ Window Geometry:
     collapsed: false
   Width: 1855
   X: 55
-  Y: 22
+  Y: 14

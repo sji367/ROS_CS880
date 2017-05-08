@@ -38,6 +38,7 @@ class MakeMap():
         
     def scan_callback(self, scan_msg):
         """ Callback for the /scan messages."""
+        self.previous_scan.ranges = self.scan.ranges
         self.scan.ranges = scan_msg.ranges
         self.scan.angle_increment = scan_msg.angle_increment
         self.scan.angle_max = scan_msg.angle_max
@@ -50,6 +51,14 @@ class MakeMap():
         self.meta.width = map_msg.info.width
         self.meta.origin.position.x = map_msg.info.origin.position.x
         self.meta.origin.position.y = map_msg.info.origin.position.y
+        
+    def odom_callback(self, odom_msg):
+        """ callback to handle odometry messages"""        
+        # convert those into x/y/theta positions
+        self.cur_odom.x = odom_msg.pose.pose.position.x
+        self.cur_odom.y = odom_msg.pose.pose.position.y
+        self.cur_odom.theta = normalize_angle(self.rotation_distance(odom_msg.pose.pose.orientation.z,
+                                                                     odom_msg.pose.pose.orientation.w))
         
     def xy2grid(self, x,y):
         """ Converts the local X,Y coordinates to the grid coordinate system."""
@@ -100,6 +109,9 @@ class MakeMap():
         # convert to probability (currently in range from 0 to 100)
         else:
             prior *= .01
+            if prior < 0.01:
+                prior = 0.01
+#            print prior
         
         # Calculate eta
         eta = 1/(self.p_measurement_given_occupied*prior + self.p_measurement_given_notOccupied*(1-prior))
@@ -126,16 +138,72 @@ class MakeMap():
             # intermediate positions
             XPOS=int(round(K*1.0*dx/JumpCells))+camX
             YPOS=int(round(K*1.0*dy/JumpCells))+camY
-            if [XPOS, YPOS] not in prev_hit:
+            if [XPOS, YPOS] not in prev_hit or [XPOS, YPOS] not in self.scan_endpoints:
                 prev_hit.append([XPOS, YPOS])
                 # update the map
                 row_major_index = self.xy2mapIndex(XPOS, YPOS)
                 self.setOccupancy(row_major_index, self.current_map.data[row_major_index], True)
     
+#    def updateMap2(self):
+#        """ This function updates the occupancy grid cells with the current 
+#            scan. """    
+#        self.getCameraPositon()
+#        
+#        # The Current position of the robot should be free
+#        camGridX,camGridY=self.xy2grid(self.camera_pos.x, self.camera_pos.y)
+#        cam_index= self.xy2mapIndex(camGridX,camGridY)
+#        self.setOccupancy(cam_index, self.current_map.data[cam_index], True)
+#        
+#        laser_data=self.scan.ranges
+#        start_angle = normalize_angle(self.scan.angle_min+self.camera_pos.theta)
+#        old_start_angle = normalize_angle(self.scan.angle_min+self.prev_camera_pos.theta)
+#        print
+#        for i in range(len(laser_data)):
+#            if not np.isnan(laser_data[i]) and laser_data[i] < self.max_range and laser_data[i] > self.min_range:
+#                # Update the current angle to reflect the angle of the laser 
+#                #  scan.
+#                cur_angle = normalize_angle(self.scan.angle_increment*i + start_angle)
+#                
+#                # Determine the location of the obstacle found by the laser scan
+#                scanX = laser_data[i]*np.cos(cur_angle)+self.camera_pos.x
+#                scanY = laser_data[i]*np.sin(cur_angle)+self.camera_pos.y
+#                
+#                    
+#                # Try to remove outliers by comparing it to the previous scan
+#                #   To do this we first need to put find the angle to current 
+#                #   depth's position with respect to the previous scan. This
+#                #   value is used to determine where the current and previous 
+#                #   scans overlap.
+#                dx = scanX-self.prev_camera_pos.x
+#                dy = scanY-self.prev_camera_pos.y
+#                theta = normalize_angle(np.arctan2(dy, dx))
+#                dtheta = theta-old_start_angle
+#                index = int(round(dtheta/self.scan.angle_increment))
+#                
+#                if index < len(laser_data) and index>=0:
+#                    # Only update the map when the difference in the two scans
+#                    #   is less than +/- 0.15 meters (approx. +/- 6").
+#                    dz = self.previous_scan.ranges[index]-laser_data[i]
+#                    if dz == 0:           
+#                        scanX_grid, scanY_grid = self.xy2grid(scanX, scanY)
+#                        
+#                        # Update the map between the obstacle and the robot
+#                        self.updateNeighbors(scanX_grid, scanY_grid)
+#                            
+#                        # Update the map to include the obstacle
+#                        row_major_index = self.xy2mapIndex(scanX_grid, scanY_grid)
+#                        self.setOccupancy(row_major_index, self.current_map.data[row_major_index], False)
+#                    else:                        
+#                        print dz
+#        self.previous_scan.ranges = self.scan.ranges
+#        self.publishNewMap()
+        
     def updateMap(self):
         """ This function updates the occupancy grid cells with the current 
             scan. """    
         self.getCameraPositon()
+        prev=-1
+        cur_ind = -1
         
         # The Current position of the robot should be free
         camGridX,camGridY=self.xy2grid(self.camera_pos.x, self.camera_pos.y)
@@ -144,34 +212,24 @@ class MakeMap():
         
         laser_data=self.scan.ranges
         start_angle = normalize_angle(self.scan.angle_min+self.camera_pos.theta)
-        old_start_angle = normalize_angle(self.scan.angle_min+self.prev_camera_pos.theta)
         
+        self.scan_endpoints = []
         for i in range(len(laser_data)):
             if not np.isnan(laser_data[i]) and laser_data[i] < self.max_range and laser_data[i] > self.min_range:
-                # Update the current angle to reflect the angle of the laser 
-                #  scan.
-                cur_angle = normalize_angle(self.scan.angle_increment*i + start_angle)
-                
-                # Determine the location of the obstacle found by the laser scan
-                scanX = laser_data[i]*np.cos(cur_angle)+self.camera_pos.x
-                scanY = laser_data[i]*np.sin(cur_angle)+self.camera_pos.y
-                    
-                # Try to remove outliers by comparing it to the previous scan
-                #   To do this we first need to put find the angle to current 
-                #   depth's position with respect to the previous scan. This
-                #   value is used to determine where the current and previous 
-                #   scans overlap.
-                dx = scanX-self.prev_camera_pos.x
-                dy = scanY-self.prev_camera_pos.y
-                theta = normalize_angle(np.arctan2(dy, dx))
-                dtheta = theta-old_start_angle
-                index = int(round(dtheta/self.scan.angle_increment))
-                
-                if index < len(laser_data) and index>=0:
+                cur_ind =i
+                if prev !=-1:
                     # Only update the map when the difference in the two scans
-                    #   is less than +/- 0.15 meters (approx. +/- 6").
-                    dz = self.previous_scan.data[index]-laser_data[i]
-                    if abs(dz) < 0.25:           
+                    #   is less than +/- 0.05 meters (approx. +/- 2").  
+                    if abs(laser_data[prev]-laser_data[i])< 0.05:
+                        # Update the current angle to reflect the angle of the laser 
+                        #  scan.
+                        cur_angle = normalize_angle(self.scan.angle_increment*i + start_angle)
+                        
+                        # Determine the location of the obstacle found by the laser scan
+                        scanX = laser_data[i]*np.cos(cur_angle)+self.camera_pos.x
+                        scanY = laser_data[i]*np.sin(cur_angle)+self.camera_pos.y
+                        self.scan_endpoints = [[scanX,scanY]]
+                        
                         scanX_grid, scanY_grid = self.xy2grid(scanX, scanY)
                         
                         # Update the map between the obstacle and the robot
@@ -180,7 +238,7 @@ class MakeMap():
                         # Update the map to include the obstacle
                         row_major_index = self.xy2mapIndex(scanX_grid, scanY_grid)
                         self.setOccupancy(row_major_index, self.current_map.data[row_major_index], False)
-        self.previous_scan.data = self.scan.data
+                prev = cur_ind
         self.publishNewMap()
         
     def publishNewMap(self):
@@ -270,10 +328,10 @@ class MakeMap():
         # Get the parameters for the grid
         self.ogrid_sizeX = rospy.get_param('x_size', 250)
         self.ogrid_sizeY = rospy.get_param('y_size', 250)
-        self.grid_size = rospy.get_param('grid_size', 0.15) # in meters/cell (25cm)
+        self.grid_size = rospy.get_param('grid_size', 0.05) # in meters/cell (25cm)
         
         # Sensor Meta data
-        self.min_range = rospy.get_param('max_range',0.4)
+        self.min_range = rospy.get_param('max_range',0.5)
         self.max_range = rospy.get_param('max_range',6.0)
         
         # reliability
@@ -301,6 +359,7 @@ class MakeMap():
         
         # Initialize the map as unknown (-1)
         self.current_map.data = [-1]*self.ogrid_sizeX*self.ogrid_sizeY # row-major order
+        self.scan_endpoints = []
         
         self.origin = self.setOrigin()
         
@@ -314,15 +373,14 @@ class MakeMap():
         self.scan_sub = rospy.Subscriber("/scan", LaserScan, self.scan_callback)
         self.sub_map = rospy.Subscriber('/map', OccupancyGrid, self.costmap_callback)
         
-        self.listener.waitForTransform('/map', '/base_link', rospy.Time(0), rospy.Duration(1))
+        self.listener.waitForTransform('/map', '/camera_depth_frame', rospy.Time(0), rospy.Duration(1))
         
         # Get First position and then set it to previous
         self.getCameraPositon()
-        self.previous_scan.data = self.scan.data
+        self.previous_scan.ranges = self.scan.ranges
         
         while (not rospy.is_shutdown()):
             self.updateMap()
-#            return
         
         return
 if __name__ == "__main__":
