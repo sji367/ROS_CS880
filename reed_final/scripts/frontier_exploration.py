@@ -5,7 +5,6 @@ Created on Wed Mar 29 15:04:02 2017
 
 @author: Sam Reed
 """
-
 import rospy
 import numpy as np
 import tf
@@ -148,7 +147,7 @@ class Frontier_Based_Exploration():
         top = False
         bottom = False
         
-        if (index>self.ogrid_sizeX):
+        if (index>=self.ogrid_sizeX):
             top = True
             # Check the cell above to see if its connected to a known 
             #   cell
@@ -204,8 +203,8 @@ class Frontier_Based_Exploration():
             inputed frontier, which is a 1D vector containing the indices of 
             the cells on the frontier.
         """
-        labels = np.zeros_like(frontier, dtype=np.int8)
-        full_labels = np.ones_like(self.current_map.data, dtype=np.int8)*-1
+        labels = np.zeros_like(frontier, dtype=np.int16)
+        full_labels = np.ones_like(self.current_map.data, dtype=np.int16)*-1
         equiv = []
         cur_label = -1
         cntr = -1
@@ -217,7 +216,7 @@ class Frontier_Based_Exploration():
             topLeft = False
             topRight = False
             # Check the top
-            if (i>self.ogrid_sizeX):
+            if (i>=self.ogrid_sizeX):
                 topIndex = i-self.ogrid_sizeX
                 top = full_labels[topIndex] !=-1
                 # Check top Right
@@ -229,7 +228,7 @@ class Frontier_Based_Exploration():
             if (np.mod(i,self.ogrid_sizeX) != 0):
                 leftIndex = i-1
                 left = full_labels[leftIndex] !=-1
-                if (i>self.ogrid_sizeX):
+                if (i>=self.ogrid_sizeX):
                     topLeftIndex = i-self.ogrid_sizeX-1
                     topLeft = full_labels[topLeftIndex] !=-1
             
