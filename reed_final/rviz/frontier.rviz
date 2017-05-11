@@ -4,6 +4,7 @@ Panels:
     Name: Displays
     Property Tree Widget:
       Expanded:
+        - /RobotModel1/Status1
         - /TF1/Frames1
         - /TF1/Tree1
         - /Global Map1/Planner1
@@ -29,7 +30,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: LaserScan
+    SyncSource: ""
 Visualization Manager:
   Class: ""
   Displays:
@@ -462,14 +463,6 @@ Visualization Manager:
       Topic: /move_base/NavfnROS/plan
       Unreliable: false
       Value: true
-    - Class: rviz/MarkerArray
-      Enabled: true
-      Marker Topic: /viz_marker_array
-      Name: MarkerArray
-      Namespaces:
-        {}
-      Queue Size: 100
-      Value: true
     - Alpha: 0.7
       Class: rviz/Map
       Color Scheme: map
@@ -487,6 +480,22 @@ Visualization Manager:
       Name: Map
       Topic: /map
       Unreliable: false
+      Value: true
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /frontier_marker
+      Name: Frontier
+      Namespaces:
+        {}
+      Queue Size: 100
+      Value: true
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /centroid_marker
+      Name: Centroids
+      Namespaces:
+        {}
+      Queue Size: 100
       Value: true
   Enabled: true
   Global Options:
@@ -519,7 +528,7 @@ Visualization Manager:
         Value: false
       Name: Current View
       Near Clip Distance: 0.01
-      Scale: 70.5024
+      Scale: 83.5334
       Target Frame: <Fixed Frame>
       Value: TopDownOrtho (rviz)
       X: 0.834575

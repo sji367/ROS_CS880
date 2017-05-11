@@ -109,8 +109,8 @@ class MakeMap():
         # convert to probability (currently in range from 0 to 100)
         else:
             prior *= .01
-            if prior < 0.01:
-                prior = 0.01
+            if prior < 0.001:
+                prior = 0.001
 #            print prior
         
         # Calculate eta
@@ -326,8 +326,8 @@ class MakeMap():
         self.listener = tf.TransformListener()        
         
         # Get the parameters for the grid
-        self.ogrid_sizeX = rospy.get_param('x_size', 250)
-        self.ogrid_sizeY = rospy.get_param('y_size', 250)
+        self.ogrid_sizeX = rospy.get_param('x_size', 350)
+        self.ogrid_sizeY = rospy.get_param('y_size', 350)
         self.grid_size = rospy.get_param('grid_size', 0.05) # in meters/cell (25cm)
         
         # Sensor Meta data
