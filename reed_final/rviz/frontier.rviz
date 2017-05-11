@@ -4,12 +4,10 @@ Panels:
     Name: Displays
     Property Tree Widget:
       Expanded:
-        - /TF1/Frames1
-        - /TF1/Tree1
+        - /RobotModel1/Status1
         - /Global Map1/Planner1
         - /Local Map1/Planner1
         - /Local Map1/Trajectory Cloud1
-        - /Gmapping Map1
       Splitter Ratio: 0.5
     Tree Height: 772
   - Class: rviz/Selection
@@ -30,7 +28,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: ""
+    SyncSource: LaserScan
 Visualization Manager:
   Class: ""
   Displays:
@@ -69,19 +67,156 @@ Visualization Manager:
       Value: true
       Visual Enabled: true
     - Class: rviz/TF
-      Enabled: false
+      Enabled: true
       Frame Timeout: 15
       Frames:
-        All Enabled: false
+        All Enabled: true
+        base_footprint:
+          Value: true
+        base_link:
+          Value: true
+        camera_depth_frame:
+          Value: true
+        camera_depth_optical_frame:
+          Value: true
+        camera_link:
+          Value: true
+        camera_rgb_frame:
+          Value: true
+        camera_rgb_optical_frame:
+          Value: true
+        caster_back_link:
+          Value: true
+        caster_front_link:
+          Value: true
+        cliff_sensor_front_link:
+          Value: true
+        cliff_sensor_left_link:
+          Value: true
+        cliff_sensor_right_link:
+          Value: true
+        gyro_link:
+          Value: true
+        map:
+          Value: true
+        odom:
+          Value: true
+        plate_bottom_link:
+          Value: true
+        plate_middle_link:
+          Value: true
+        plate_top_link:
+          Value: true
+        pole_bottom_0_link:
+          Value: true
+        pole_bottom_1_link:
+          Value: true
+        pole_bottom_2_link:
+          Value: true
+        pole_bottom_3_link:
+          Value: true
+        pole_bottom_4_link:
+          Value: true
+        pole_bottom_5_link:
+          Value: true
+        pole_kinect_0_link:
+          Value: true
+        pole_kinect_1_link:
+          Value: true
+        pole_middle_0_link:
+          Value: true
+        pole_middle_1_link:
+          Value: true
+        pole_middle_2_link:
+          Value: true
+        pole_middle_3_link:
+          Value: true
+        pole_top_0_link:
+          Value: true
+        pole_top_1_link:
+          Value: true
+        pole_top_2_link:
+          Value: true
+        pole_top_3_link:
+          Value: true
+        wheel_left_link:
+          Value: true
+        wheel_right_link:
+          Value: true
       Marker Scale: 1
       Name: TF
-      Show Arrows: true
+      Show Arrows: false
       Show Axes: true
       Show Names: false
       Tree:
-        {}
+        map:
+          odom:
+            base_footprint:
+              base_link:
+                camera_rgb_frame:
+                  camera_depth_frame:
+                    camera_depth_optical_frame:
+                      {}
+                  camera_link:
+                    {}
+                  camera_rgb_optical_frame:
+                    {}
+                caster_back_link:
+                  {}
+                caster_front_link:
+                  {}
+                cliff_sensor_front_link:
+                  {}
+                cliff_sensor_left_link:
+                  {}
+                cliff_sensor_right_link:
+                  {}
+                gyro_link:
+                  {}
+                plate_bottom_link:
+                  {}
+                plate_middle_link:
+                  {}
+                plate_top_link:
+                  {}
+                pole_bottom_0_link:
+                  {}
+                pole_bottom_1_link:
+                  {}
+                pole_bottom_2_link:
+                  {}
+                pole_bottom_3_link:
+                  {}
+                pole_bottom_4_link:
+                  {}
+                pole_bottom_5_link:
+                  {}
+                pole_kinect_0_link:
+                  {}
+                pole_kinect_1_link:
+                  {}
+                pole_middle_0_link:
+                  {}
+                pole_middle_1_link:
+                  {}
+                pole_middle_2_link:
+                  {}
+                pole_middle_3_link:
+                  {}
+                pole_top_0_link:
+                  {}
+                pole_top_1_link:
+                  {}
+                pole_top_2_link:
+                  {}
+                pole_top_3_link:
+                  {}
+                wheel_left_link:
+                  {}
+                wheel_right_link:
+                  {}
       Update Interval: 0
-      Value: false
+      Value: true
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
@@ -325,7 +460,7 @@ Visualization Manager:
       Marker Topic: /frontier_marker
       Name: Frontier
       Namespaces:
-        {}
+        Frontier: true
       Queue Size: 100
       Value: true
     - Class: rviz/MarkerArray
@@ -333,7 +468,7 @@ Visualization Manager:
       Marker Topic: /centroid_marker
       Name: Centroids
       Namespaces:
-        {}
+        Frontier: true
       Queue Size: 100
       Value: true
   Enabled: true
@@ -358,7 +493,7 @@ Visualization Manager:
   Value: true
   Views:
     Current:
-      Angle: -6.72003
+      Angle: -6.18502
       Class: rviz/TopDownOrtho
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.06
@@ -367,11 +502,11 @@ Visualization Manager:
         Value: false
       Name: Current View
       Near Clip Distance: 0.01
-      Scale: 83.5334
+      Scale: 159.733
       Target Frame: <Fixed Frame>
       Value: TopDownOrtho (rviz)
-      X: 0.834575
-      Y: 0.443151
+      X: 0.693096
+      Y: -0.433295
     Saved: ~
 Window Geometry:
   Displays:

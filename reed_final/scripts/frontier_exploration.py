@@ -66,8 +66,6 @@ class Frontier_Based_Exploration():
         
         self.origin.x = map_msg.info.origin.position.x
         self.origin.y = map_msg.info.origin.position.y
-        
-        print self.origin.x, self.origin.y
                 
     def status_callback(self, status_msg):
         """ """
@@ -334,11 +332,11 @@ class Frontier_Based_Exploration():
                  xy.append(y)
                  frontier[labels[i]].append(xy)
         
-        # Remove all frontiers smaller than 1 meter
+        # Remove all frontiers smaller than 100 cm
         removed = 0
         for i in range(len(frontier)):
             index = i-removed
-            if len(frontier[index])<int(1/self.grid_size):
+            if len(frontier[index])<=int(1/self.grid_size):
                 frontier.pop(index)
                 removed+= 1
         
@@ -369,7 +367,6 @@ class Frontier_Based_Exploration():
         self.cost = []
         
         centroid_index = 0
-        print '\t\t',len(self.reached_centroids)
         for i in range(len(frontiers)):
             x_c, y_c, cost_c = self.calc_centroid(frontiers[i])
             # Store centroid if it is known and 

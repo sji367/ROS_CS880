@@ -44,14 +44,6 @@ class MakeMap():
         self.scan.angle_max = scan_msg.angle_max
         self.scan.angle_min = scan_msg.angle_min
     
-    def costmap_callback(self, map_msg):
-        """ Callback to handle Map messages. """        
-        self.meta.resolution= map_msg.info.resolution
-        self.meta.height = map_msg.info.height
-        self.meta.width = map_msg.info.width
-        self.meta.origin.position.x = map_msg.info.origin.position.x
-        self.meta.origin.position.y = map_msg.info.origin.position.y
-        
     def odom_callback(self, odom_msg):
         """ callback to handle odometry messages"""        
         # convert those into x/y/theta positions
@@ -226,13 +218,8 @@ class MakeMap():
         self.position.time = rospy.get_rostime().to_sec()
         self.position.theta= normalize_angle(self.rotation_distance(rot[2],rot[3]))
         
-        if abs(trans[0]-self.prev_pos.x) < 0.5 or abs(trans[1]-self.prev_pos.y) < 0.5: 
-            self.position.x= trans[0]
-            self.position.y = trans[1]
-        else:
-            dt = self.camera_pos.time-self.prev_camera_pos.time
-            self.position.x = self.velocity.linear.x * dt +self.prev_pos.x
-            self.position.y = self.velocity.linear.y * dt +self.prev_pos.y
+        self.position.x= trans[0]
+        self.position.y = trans[1]
             
         
     def getCameraPositon(self):
@@ -244,13 +231,8 @@ class MakeMap():
         self.camera_pos.time = rospy.get_rostime().to_sec()
         self.camera_pos.theta= normalize_angle(self.rotation_distance(rot[2],rot[3]))
         
-        dt = self.camera_pos.time-self.prev_camera_pos.time
-        if abs(trans[0]-self.prev_camera_pos.x) < 0.5 and abs(trans[1]-self.prev_camera_pos.y) < 0.5 or dt>3:
-            self.camera_pos.x= trans[0]
-            self.camera_pos.y = trans[1]
-        else:
-            self.camera_pos.x = self.velocity.linear.x * dt +self.prev_camera_pos.x
-            self.camera_pos.y = self.velocity.linear.y * dt +self.prev_camera_pos.y
+        self.camera_pos.x= trans[0]
+        self.camera_pos.y = trans[1]
         
             
     def setPrevPosition(self, position):
@@ -315,7 +297,7 @@ class MakeMap():
         # subscribers for odometry and position (/move_base/feedback) messages
         self.cmd_vel = rospy.Subscriber('/cmd_vel_mux/input/navi', Twist, self.vel_callback)
         self.scan_sub = rospy.Subscriber("/scan", LaserScan, self.scan_callback)
-        self.sub_map = rospy.Subscriber('/map', OccupancyGrid, self.costmap_callback)
+#        self.sub_map = rospy.Subscriber('/map', OccupancyGrid, self.costmap_callback)
         
         self.listener.waitForTransform('/map', '/camera_depth_frame', rospy.Time(0), rospy.Duration(1))
         
