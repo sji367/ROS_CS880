@@ -3,6 +3,8 @@
 
   <node name="Make_Map" pkg="reed_final" type="makeMap.py" output="screen"/>
 
-  
+  <node pkg="rosbag" type="record" name="frontier_bag"
+	args="-o $(find reed_final)/bag/final_test /map /frontier_map /tf /centroid_marker /frontier_marker /scan /move_base/NavfnROS/plan"
+  />
 
 </launch>
