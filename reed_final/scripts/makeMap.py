@@ -62,20 +62,21 @@ class MakeMap():
         
     def xy2grid(self, x,y):
         """ Converts the local X,Y coordinates to the grid coordinate system."""
-        gridX = int(round(x/self.grid_size))+self.origin.x
-        gridY = int(round(y/self.grid_size))+self.origin.y
+        gridX = int(round((x-self.origin.x)/self.grid_size))
+        gridY = int(round((y-self.origin.y)/self.grid_size))
         return gridX,gridY
         
     def grid2xy(self, gridX, gridY):
         """ Converts the grid coordinates to the local X,Y. """
-        x = (gridX-self.origin.x)*self.grid_size
-        y = (gridY-self.origin.y)*self.grid_size
+        x = gridX*self.grid_size+self.origin.x
+        y = gridY*self.grid_size+self.origin.y
         return x,y
         
     def xy2mapIndex(self, x,y):
         """ Converts the x,y grid coordinates into a row-major index for the 
             map. """
         if x>self.ogrid_sizeX or y>self.ogrid_sizeY:
+            print 'MAP IS TOO SMALL!!!'
             return self.ogrid_sizeX * self.ogrid_sizeY -1
         else:
             return int(y*self.ogrid_sizeY + x)
@@ -90,8 +91,8 @@ class MakeMap():
     def setOrigin(self):
         """ Sets the origin. """
         origin = Position()
-        origin.x = self.ogrid_sizeX/2
-        origin.y = self.ogrid_sizeY/2
+        origin.x = self.ogrid_sizeX/2*self.grid_size
+        origin.y = self.ogrid_sizeY/2*self.grid_size
         origin.theta = 0        
         
         self.current_map.info.height = self.ogrid_sizeX
@@ -109,9 +110,8 @@ class MakeMap():
         # convert to probability (currently in range from 0 to 100)
         else:
             prior *= .01
-            if prior < 0.001:
-                prior = 0.001
-#            print prior
+            if prior < 0.01:
+                prior = 0.01
         
         # Calculate eta
         eta = 1/(self.p_measurement_given_occupied*prior + self.p_measurement_given_notOccupied*(1-prior))
@@ -144,60 +144,7 @@ class MakeMap():
                 row_major_index = self.xy2mapIndex(XPOS, YPOS)
                 self.setOccupancy(row_major_index, self.current_map.data[row_major_index], True)
     
-#    def updateMap2(self):
-#        """ This function updates the occupancy grid cells with the current 
-#            scan. """    
-#        self.getCameraPositon()
-#        
-#        # The Current position of the robot should be free
-#        camGridX,camGridY=self.xy2grid(self.camera_pos.x, self.camera_pos.y)
-#        cam_index= self.xy2mapIndex(camGridX,camGridY)
-#        self.setOccupancy(cam_index, self.current_map.data[cam_index], True)
-#        
-#        laser_data=self.scan.ranges
-#        start_angle = normalize_angle(self.scan.angle_min+self.camera_pos.theta)
-#        old_start_angle = normalize_angle(self.scan.angle_min+self.prev_camera_pos.theta)
-#        print
-#        for i in range(len(laser_data)):
-#            if not np.isnan(laser_data[i]) and laser_data[i] < self.max_range and laser_data[i] > self.min_range:
-#                # Update the current angle to reflect the angle of the laser 
-#                #  scan.
-#                cur_angle = normalize_angle(self.scan.angle_increment*i + start_angle)
-#                
-#                # Determine the location of the obstacle found by the laser scan
-#                scanX = laser_data[i]*np.cos(cur_angle)+self.camera_pos.x
-#                scanY = laser_data[i]*np.sin(cur_angle)+self.camera_pos.y
-#                
-#                    
-#                # Try to remove outliers by comparing it to the previous scan
-#                #   To do this we first need to put find the angle to current 
-#                #   depth's position with respect to the previous scan. This
-#                #   value is used to determine where the current and previous 
-#                #   scans overlap.
-#                dx = scanX-self.prev_camera_pos.x
-#                dy = scanY-self.prev_camera_pos.y
-#                theta = normalize_angle(np.arctan2(dy, dx))
-#                dtheta = theta-old_start_angle
-#                index = int(round(dtheta/self.scan.angle_increment))
-#                
-#                if index < len(laser_data) and index>=0:
-#                    # Only update the map when the difference in the two scans
-#                    #   is less than +/- 0.15 meters (approx. +/- 6").
-#                    dz = self.previous_scan.ranges[index]-laser_data[i]
-#                    if dz == 0:           
-#                        scanX_grid, scanY_grid = self.xy2grid(scanX, scanY)
-#                        
-#                        # Update the map between the obstacle and the robot
-#                        self.updateNeighbors(scanX_grid, scanY_grid)
-#                            
-#                        # Update the map to include the obstacle
-#                        row_major_index = self.xy2mapIndex(scanX_grid, scanY_grid)
-#                        self.setOccupancy(row_major_index, self.current_map.data[row_major_index], False)
-#                    else:                        
-#                        print dz
-#        self.previous_scan.ranges = self.scan.ranges
-#        self.publishNewMap()
-        
+
     def updateMap(self):
         """ This function updates the occupancy grid cells with the current 
             scan. """    
@@ -246,11 +193,8 @@ class MakeMap():
             /frontier_map."""
         self.current_map.header.frame_id = 'map'
         
-        dif_in_middleX = self.origin.x*self.grid_size
-        dif_in_middleY = self.origin.y*self.grid_size
-        
-        self.current_map.info.origin.position.x = -dif_in_middleX
-        self.current_map.info.origin.position.y = -dif_in_middleY
+        self.current_map.info.origin.position.x = -self.origin.x
+        self.current_map.info.origin.position.y = -self.origin.y
         self.current_map.info.origin.orientation.w = 1
         
         self.pub_map.publish(self.current_map)
@@ -326,9 +270,9 @@ class MakeMap():
         self.listener = tf.TransformListener()        
         
         # Get the parameters for the grid
-        self.ogrid_sizeX = rospy.get_param('x_size', 350)
-        self.ogrid_sizeY = rospy.get_param('y_size', 350)
-        self.grid_size = rospy.get_param('grid_size', 0.05) # in meters/cell (25cm)
+        self.ogrid_sizeX = rospy.get_param('x_size', 500)
+        self.ogrid_sizeY = rospy.get_param('y_size', 500)
+        self.grid_size = rospy.get_param('grid_size', 0.05) # in meters/cell (5cm)
         
         # Sensor Meta data
         self.min_range = rospy.get_param('max_range',0.5)

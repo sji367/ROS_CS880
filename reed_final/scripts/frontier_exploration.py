@@ -60,12 +60,15 @@ class Frontier_Based_Exploration():
         self.meta.origin.position.x = map_msg.info.origin.position.x
         self.meta.origin.position.y = map_msg.info.origin.position.y
         
-        self.gmapping_map.data = map_msg.data
+        self.current_map.data = map_msg.data
         self.ogrid_sizeX = map_msg.info.width
         self.ogrid_sizeY = map_msg.info.height
+        self.grid_size = map_msg.info.resolution
         
         self.origin.x = map_msg.info.origin.position.x
         self.origin.y = map_msg.info.origin.position.y
+        
+        print self.origin.x, self.origin.y
                 
     def status_callback(self, status_msg):
         """ """
@@ -85,8 +88,7 @@ class Frontier_Based_Exploration():
         self.cur_odom.y = odom_msg.pose.pose.position.y
         self.cur_odom.theta = normalize_angle(self.rotation_distance(odom_msg.pose.pose.orientation.z,
                                                                      odom_msg.pose.pose.orientation.w))
-                                                                     
-    
+        
     def xy2grid(self, x,y):
         """ Converts the local X,Y coordinates to the grid coordinate system."""
         gridX = int(round((x-self.origin.x)/self.grid_size))
@@ -103,6 +105,7 @@ class Frontier_Based_Exploration():
         """ Converts the x,y grid coordinates into a row-major index for the 
             map. """
         if x>self.ogrid_sizeX or y>self.ogrid_sizeY:
+            print 'MAP IS TOO SMALL'
             return self.ogrid_sizeX * self.ogrid_sizeY -1
         else:
             return int(y*self.ogrid_sizeY + x)
@@ -149,38 +152,38 @@ class Frontier_Based_Exploration():
             top = True
             # Check the cell above to see if its connected to a known 
             #   cell
-            if self.gmapping_map.data[index-self.ogrid_sizeX] ==-1:#<50 and self.gmapping_map.data[index-self.ogrid_sizeX]>=0:
+            if self.current_map.data[index-self.ogrid_sizeX] ==-1:#<50 and self.current_map.data[index-self.ogrid_sizeX]>=0:
                 connected = True
             
         if (index<(self.ogrid_sizeX*self.ogrid_sizeY-self.ogrid_sizeX)): # check this math
             bottom =True
             # Check the cell below to see if its connected to a known 
             #   cell
-            if self.gmapping_map.data[index+self.ogrid_sizeX] ==-1:#<50 and self.gmapping_map.data[index+self.ogrid_sizeX]>=0:
+            if self.current_map.data[index+self.ogrid_sizeX] ==-1:#<50 and self.current_map.data[index+self.ogrid_sizeX]>=0:
                 connected = True
             
         if (np.mod(index,self.ogrid_sizeX) != 0):
             # Check the cell to the left to see if its connected to a  
             #   known cell
-            if self.gmapping_map.data[index-1] ==-1:#<50 and self.gmapping_map.data[index-1]>=0:
+            if self.current_map.data[index-1] ==-1:#<50 and self.current_map.data[index-1]>=0:
                 connected = True
             # Check top left
-            if top and self.gmapping_map.data[index-self.ogrid_sizeX-1] ==-1:
+            if top and self.current_map.data[index-self.ogrid_sizeX-1] ==-1:
                 connected = True
             # Check bottom left
-            if bottom and self.gmapping_map.data[index+self.ogrid_sizeX-1] ==-1:
+            if bottom and self.current_map.data[index+self.ogrid_sizeX-1] ==-1:
                 connected = True
         
         if (np.mod(index,self.ogrid_sizeX) != self.ogrid_sizeX-1):
             # Check the cell to the right to see if its connected to a 
             #   known cell
-            if self.gmapping_map.data[index+1] ==-1:#<50 and self.gmapping_map.data[index+1]>=0:
+            if self.current_map.data[index+1] ==-1:#<50 and self.current_map.data[index+1]>=0:
                 connected = True
             # Check top right
-            if top and self.gmapping_map.data[index-self.ogrid_sizeX+1] ==-1:
+            if top and self.current_map.data[index-self.ogrid_sizeX+1] ==-1:
                 connected = True
             # Check bottom right
-            if bottom and self.gmapping_map.data[index+self.ogrid_sizeX+1] ==-1:
+            if bottom and self.current_map.data[index+self.ogrid_sizeX+1] ==-1:
                 connected = True
         
         return connected
@@ -189,9 +192,9 @@ class Frontier_Based_Exploration():
         """ This funtion finds the frontier on the map and returns a 1D vector 
             containing the indices of the cells on the frontier."""
         frontier = []
-        for i in range(len(self.gmapping_map.data)):
+        for i in range(len(self.current_map.data)):
             # Store the frontiers as a list
-            if self.gmapping_map.data[i]<30 and self.gmapping_map.data[i]>=0:
+            if self.current_map.data[i]<30 and self.current_map.data[i]>=0:
                 if self.onFrontier(i):
                     frontier.append(i)
         return frontier
@@ -202,7 +205,7 @@ class Frontier_Based_Exploration():
             the cells on the frontier.
         """
         labels = np.zeros_like(frontier, dtype=np.int8)
-        full_labels = np.ones_like(self.gmapping_map.data, dtype=np.int8)*-1
+        full_labels = np.ones_like(self.current_map.data, dtype=np.int8)*-1
         equiv = []
         cur_label = -1
         cntr = -1
@@ -213,6 +216,7 @@ class Frontier_Based_Exploration():
             left = False
             topLeft = False
             topRight = False
+            # Check the top
             if (i>self.ogrid_sizeX):
                 topIndex = i-self.ogrid_sizeX
                 top = full_labels[topIndex] !=-1
@@ -220,7 +224,8 @@ class Frontier_Based_Exploration():
                 if ((np.mod(i,self.ogrid_sizeX) != self.ogrid_sizeX-1)):
                     topRightIndex = i-self.ogrid_sizeX+1
                     topRight = full_labels[topRightIndex] !=-1
-                    
+            
+            # Check Left
             if (np.mod(i,self.ogrid_sizeX) != 0):
                 leftIndex = i-1
                 left = full_labels[leftIndex] !=-1
@@ -365,12 +370,16 @@ class Frontier_Based_Exploration():
         self.cost = []
         
         centroid_index = 0
+        print '\t\t',len(self.reached_centroids)
         for i in range(len(frontiers)):
             x_c, y_c, cost_c = self.calc_centroid(frontiers[i])
             # Store centroid if it is known and 
             index = self.xy2mapIndex(x_c, y_c)
-            if self.gmapping_map.data[index]< 50:
-                if [x_c, y_c] not in self.unreachable_frontiers or [x_c, y_c] not in self.reached_centroids:
+            if self.current_map.data[index]< 50:
+                if [x_c, y_c] in self.unreachable_frontiers:
+                    self.makelineMarker(frontiers[i], centroid_index, new=False)
+                    self.makeMarker(x_c, y_c, centroid_index, new=False)
+                elif [x_c, y_c] not in self.reached_centroids:
                     self.makelineMarker(frontiers[i], centroid_index)
                     self.makeMarker(x_c, y_c, centroid_index)
                     self.centroidX.append(x_c)
@@ -421,7 +430,7 @@ class Frontier_Based_Exploration():
             return -1
         
         
-    def makeMarker(self, centroidX, centroidY, ID, action = Marker.ADD):
+    def makeMarker(self, centroidX, centroidY, ID, action = Marker.ADD,  new=True):
         """ Creates a marker on RVIZ for the centroid of the frontier"""
         
         RVIZmarker = Marker()
@@ -450,9 +459,14 @@ class Frontier_Based_Exploration():
         
         # Set the color 
         RVIZmarker.color.a = 1.0
-        RVIZmarker.color.r = 0.0
         RVIZmarker.color.g = 0.0
-        RVIZmarker.color.b = 1.0
+        
+        if new:
+            RVIZmarker.color.r = 0.0
+            RVIZmarker.color.b = 1.0
+        else:
+            RVIZmarker.color.r = 1.0
+            RVIZmarker.color.b = 0.0
         
         #Store the marker
         if len(self.markerArray.markers) <= ID:
@@ -460,7 +474,7 @@ class Frontier_Based_Exploration():
         else:
             self.markerArray.markers[ID] = RVIZmarker
             
-    def makelineMarker(self, XY, ID, action = Marker.ADD):
+    def makelineMarker(self, XY, ID, action = Marker.ADD, new=True):
         """ Creates a line marker on RVIZ for the entire frontier"""
         
         RVIZmarker = Marker()
@@ -479,9 +493,14 @@ class Frontier_Based_Exploration():
         
         # Set the color 
         RVIZmarker.color.a = 1.0
-        RVIZmarker.color.r = 0.0
         RVIZmarker.color.g = 0.0
-        RVIZmarker.color.b = 1.0
+        
+        if new:
+            RVIZmarker.color.r = 0.0
+            RVIZmarker.color.b = 1.0
+        else:
+            RVIZmarker.color.r = 1.0
+            RVIZmarker.color.b = 0.0
         
         # Store all of the real world XY coordinates
         for i in range(len(XY)):
@@ -528,8 +547,8 @@ class Frontier_Based_Exploration():
         
     def setOrigin(self):
         origin = Position()
-        origin.x = -self.ogrid_sizeX/2/self.grid_size
-        origin.y = -self.ogrid_sizeY/2/self.grid_size
+        origin.x = -self.ogrid_sizeX/2*self.grid_size
+        origin.y = -self.ogrid_sizeY/2*self.grid_size
         origin.theta = 0        
                 
         return origin
@@ -698,9 +717,9 @@ class Frontier_Based_Exploration():
         self.listener = tf.TransformListener()        
         
         # Get the parameters for the grid
-        self.ogrid_sizeX = rospy.get_param('x_size', 250)
-        self.ogrid_sizeY = rospy.get_param('y_size', 250)
-        self.grid_size = rospy.get_param('grid_size', 0.05) # in meters/cell (25cm)
+        self.ogrid_sizeX = rospy.get_param('x_size', 500)
+        self.ogrid_sizeY = rospy.get_param('y_size', 500)
+        self.grid_size = rospy.get_param('grid_size', 0.05) # in meters/cell (5cm)
         
         # Sensor Meta data
         self.min_range = rospy.get_param('max_range',0.4)
@@ -719,7 +738,6 @@ class Frontier_Based_Exploration():
         self.cur_odom = Position()
         self.prev_odom = Position()
         
-        self.gmapping_map = OccupancyGrid()
         self.current_map = OccupancyGrid()
         self.meta = MapMetaData()
         self.new_pose = PoseStamped()
@@ -735,7 +753,7 @@ class Frontier_Based_Exploration():
         self.angle_trav = 0
         self.move_base_status = [0]
         
-        self.origin = self.setOrigin()
+        self.origin = Position()#self.setOrigin()
         
         self.r = rospy.Rate(50)
         
